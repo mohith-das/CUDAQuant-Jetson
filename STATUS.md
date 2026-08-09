@@ -3,8 +3,9 @@
 <!-- The architect updates this frequently so any fresh agent can resume instantly. -->
 
 - **Last updated:** 2026-08-09 (harness bootstrap by Claude Code)
-- **Current branch:** main
-- **Current commit:** _set on first commit — run `git log -1 --oneline`_
+- **Current branch:** main (tracks `origin/main`)
+- **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
+- **Current commit:** 67f3885 (harness bootstrap) — run `git log -1 --oneline` for latest
 - **Current milestone:** Milestone 0 (harness bootstrap) — COMPLETE. Next: Milestone 1.
 
 ## Completed work
