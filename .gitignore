@@ -1,0 +1,56 @@
+# ── Secrets — never commit ─────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.*
+**/credentials*.json
+auth.json
+
+# ── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ── CUDA / native build artifacts ──────────────────────────────────────────
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.ptx
+*.cubin
+*.fatbin
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
+# ── Data / models / experiment outputs (keep the repo lean) ────────────────
+data/
+*.parquet
+*.duckdb
+*.duckdb.wal
+models/
+mlruns/
+experiments/runs/
+benchmarks/results/
+
+# ── OpenCode local state & smoke artifacts ─────────────────────────────────
+.opencode/cache/
+.opencode/logs/
+.opencode-smoke/
+
+# ── OS / editor ────────────────────────────────────────────────────────────
+.DS_Store
+*.log

@@ -1,0 +1,187 @@
+{
+  // ─────────────────────────────────────────────────────────────────────────
+  // CUDAQuant-Jetson — project-local OpenCode harness
+  //
+  // Topology:
+  //   architect (DeepSeek V4 Pro, primary)  ── orchestrates ──▶ 8 Flash workers
+  //   worker-* (DeepSeek V4 Flash, subagent) ── cannot spawn subagents (task: deny)
+  //
+  // Validated against OpenCode 1.18.10 schema (agent/permission/command are the
+  // current-generation keys; NOT permissions/shell/subagent). Do not mix config
+  // generations. See DECISIONS.md (ADR-0002) for the schema audit.
+  //
+  // Non-interactive policy: the top-level "permission" block below allow-lists
+  // every routine engineering action so neither the architect nor the workers
+  // prompt the user during development. Application-level trading safeguards are
+  // enforced in the app itself, NOT here — see STEP 25 / AGENTS.md.
+  // ─────────────────────────────────────────────────────────────────────────
+  "$schema": "https://opencode.ai/config.json",
+
+  // AGENTS.md is appended to every agent's system prompt so any fresh agent
+  // inherits the operating rules without prior chat context.
+  "instructions": ["AGENTS.md"],
+
+  // Default model for any unqualified context. Individual agents pin their own
+  // model below so nothing accidentally inherits Pro.
+  "model": "deepseek/deepseek-v4-pro",
+
+  // ── GLOBAL NON-INTERACTIVE PERMISSIONS ────────────────────────────────────
+  // Every routine engineering tool is auto-allowed. This is the strongest
+  // officially-supported equivalent of "YOLO / bypass routine dev permissions"
+  // in OpenCode 1.18.10 (there is no `dangerouslySkipPermissions`/`yolo` key —
+  // this object IS the supported mechanism). Per-agent blocks below only tighten
+  // this (workers lose `task`); they never re-introduce prompts for routine work.
+  "permission": {
+    "read": "allow",
+    "list": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "edit": "allow",               // covers write + edit + patch
+    "bash": "allow",               // shell, git, gh, ssh, tests, builds, pkg mgrs
+    "lsp": "allow",
+    "skill": "allow",
+    "webfetch": "allow",           // docs lookup / market API integration
+    "websearch": "allow",
+    "todowrite": "allow",
+    "question": "allow",
+    "external_directory": "allow", // ~/.ssh alias use, deploy paths, etc.
+    "task": "allow"                // architect delegates; workers override to deny
+  },
+
+  "agent": {
+    // ── PRIMARY: ARCHITECT / ORCHESTRATOR (DeepSeek V4 Pro) ─────────────────
+    // Sole primary agent → it is the default when OpenCode starts in this repo.
+    "architect": {
+      "mode": "primary",
+      "description": "Principal engineer + autonomous orchestrator for CUDAQuant-Jetson (DeepSeek V4 Pro). Plans, decomposes work into dependency-ordered tasks, launches 3-4 Flash workers concurrently, integrates and verifies their output, runs tests, commits/pushes, coordinates Jetson deployment, and maintains the coordination docs. THINK · DECOMPOSE · DELEGATE · INTEGRATE · VERIFY · RECOVER.",
+      "model": "deepseek/deepseek-v4-pro",
+      "color": "accent",
+      "prompt": "{file:./.opencode/prompts/architect.md}",
+      "permission": {
+        // Architect may invoke ONLY the eight Flash workers — not itself and not
+        // other primaries. This bounds the topology to architect ▶ worker (depth 1).
+        "task": {
+          "*": "deny",
+          "worker-backend": "allow",
+          "worker-data": "allow",
+          "worker-cuda": "allow",
+          "worker-quant": "allow",
+          "worker-ml": "allow",
+          "worker-ui": "allow",
+          "worker-tests": "allow",
+          "worker-docs": "allow"
+        }
+      }
+    },
+
+    // ── FLASH WORKER POOL (DeepSeek V4 Flash, subagents) ────────────────────
+    // Every worker: mode=subagent, model=Flash, task=deny (no recursive worker
+    // trees — STEP 10). steps caps runaway loops. Prompts compose a shared base
+    // charter + a role charter via two {file:} refs.
+    "worker-backend": {
+      "mode": "subagent",
+      "description": "Flash implementation worker — API/runtime/persistence/config. Owns cudaquant/api/**, cudaquant/storage/**, cudaquant/config/**. FastAPI, persistence, internal services, health/readiness, configuration.",
+      "model": "deepseek/deepseek-v4-flash",
+      "steps": 80,
+      "prompt": "{file:./.opencode/prompts/_worker-base.md}\n\n{file:./.opencode/prompts/worker-backend.md}",
+      "permission": { "task": "deny" }
+    },
+
+    "worker-data": {
+      "mode": "subagent",
+      "description": "Flash implementation worker — data & providers. Owns cudaquant/data/**, cudaquant/providers/**. Synthetic data, Alpaca, schemas, Parquet, DuckDB, streaming, ingestion, data quality.",
+      "model": "deepseek/deepseek-v4-flash",
+      "steps": 80,
+      "prompt": "{file:./.opencode/prompts/_worker-base.md}\n\n{file:./.opencode/prompts/worker-data.md}",
+      "permission": { "task": "deny" }
+    },
+
+    "worker-cuda": {
+      "mode": "subagent",
+      "description": "Flash implementation worker — CUDA/GPU. Owns cuda/**, cudaquant/features/gpu/**, tests/gpu/**, benchmarks/**. CUDA C++, bindings, kernels, GPU backtester, profiling, Jetson GPU validation, benchmarks.",
+      "model": "deepseek/deepseek-v4-flash",
+      "steps": 80,
+      "prompt": "{file:./.opencode/prompts/_worker-base.md}\n\n{file:./.opencode/prompts/worker-cuda.md}",
+      "permission": { "task": "deny" }
+    },
+
+    "worker-quant": {
+      "mode": "subagent",
+      "description": "Flash implementation worker — quant/backtest/strategies/risk. Owns cudaquant/backtest/**, cudaquant/strategies/**, cudaquant/risk/**. Deterministic backtester, transaction costs, slippage, strategies, risk metrics, walk-forward, leakage safeguards.",
+      "model": "deepseek/deepseek-v4-flash",
+      "steps": 80,
+      "prompt": "{file:./.opencode/prompts/_worker-base.md}\n\n{file:./.opencode/prompts/worker-quant.md}",
+      "permission": { "task": "deny" }
+    },
+
+    "worker-ml": {
+      "mode": "subagent",
+      "description": "Flash implementation worker — ML/regimes/experiments/LLM research. Owns cudaquant/ml/**, cudaquant/regimes/**, cudaquant/experiments/**, cudaquant/llm/**. ML, regime detection, experiment engine, model registry, champion/challenger, drift, LLM research integration.",
+      "model": "deepseek/deepseek-v4-flash",
+      "steps": 80,
+      "prompt": "{file:./.opencode/prompts/_worker-base.md}\n\n{file:./.opencode/prompts/worker-ml.md}",
+      "permission": { "task": "deny" }
+    },
+
+    "worker-ui": {
+      "mode": "subagent",
+      "description": "Flash implementation worker — single-user UI. Owns cudaquant/ui/**, templates/**, static/**. Dashboards, charts, experiments/strategies/backtests/system/risk pages.",
+      "model": "deepseek/deepseek-v4-flash",
+      "steps": 80,
+      "prompt": "{file:./.opencode/prompts/_worker-base.md}\n\n{file:./.opencode/prompts/worker-ui.md}",
+      "permission": { "task": "deny" }
+    },
+
+    "worker-tests": {
+      "mode": "subagent",
+      "description": "Flash implementation worker — tests. Owns tests/**. Unit, regression, failure, safety, and integration tests; actively tries to break assumptions.",
+      "model": "deepseek/deepseek-v4-flash",
+      "steps": 80,
+      "prompt": "{file:./.opencode/prompts/_worker-base.md}\n\n{file:./.opencode/prompts/worker-tests.md}",
+      "permission": { "task": "deny" }
+    },
+
+    "worker-docs": {
+      "mode": "subagent",
+      "description": "Flash implementation worker — documentation. Owns docs/**, README.md. Architecture, deployment docs, benchmark presentation, README.",
+      "model": "deepseek/deepseek-v4-flash",
+      "steps": 60,
+      "prompt": "{file:./.opencode/prompts/_worker-base.md}\n\n{file:./.opencode/prompts/worker-docs.md}",
+      "permission": { "task": "deny" }
+    }
+  },
+
+  // ── CUSTOM COMMANDS (all run as the architect) ───────────────────────────
+  "command": {
+    "resume": {
+      "description": "Re-hydrate from git + coordination docs and continue the current milestone automatically.",
+      "agent": "architect",
+      "template": "Run the startup protocol, then continue the highest-value work.\n\n1. Run and read: `pwd`, `git status`, `git branch --show-current`, `git log -5 --oneline`.\n2. Read AGENTS.md, STATUS.md, PLAN.md, BLOCKERS.md, AUDIT.md, DECISIONS.md.\n3. Reconcile docs against actual repo/test reality — reality wins over stale docs.\n4. Determine current milestone, incomplete work, active blockers, open critical audits (AUDIT.md), and the next highest-value tasks.\n5. Classify candidate tasks as PARALLEL_SAFE / DEPENDENT / SHARED_FILE / PRO_ONLY, then delegate PARALLEL_SAFE work to 3-4 Flash workers concurrently. Integrate, test, and update STATUS.md + CHANGELOG_AGENT.md. Do not stop until the current PLAN.md milestone is actually complete or genuinely blocked (recorded in BLOCKERS.md)."
+    },
+    "status": {
+      "description": "Summarize current milestone, tests, active workers, blockers, and next actions.",
+      "agent": "architect",
+      "template": "Produce a concise status report WITHOUT launching implementation work. Read STATUS.md, PLAN.md, BLOCKERS.md, AUDIT.md and check `git status` + `git log -3 --oneline`. Report: current milestone; completed vs in-progress work; test state (run the fast suite if quick, otherwise report last known); active work claims; open blockers; open critical audits; and the 3 next highest-value actions. Keep it tight."
+    },
+    "build-next": {
+      "description": "Identify the highest-priority milestone work, decompose it, launch parallel workers, then integrate and test.",
+      "agent": "architect",
+      "template": "Advance the current PLAN.md milestone. Steps: (1) read PLAN.md + STATUS.md to pick the highest-value incomplete slice; (2) decompose it into concrete tasks with explicit file ownership; (3) classify each as PARALLEL_SAFE / DEPENDENT / SHARED_FILE / PRO_ONLY; (4) launch 3-4 PARALLEL_SAFE Flash workers concurrently with non-overlapping ownership, recording claims in STATUS.md; (5) integrate their output yourself, inspect diffs, run focused + integration tests — never trust a worker's 'done'; (6) commit logical units and push; (7) update STATUS.md, CHANGELOG_AGENT.md, and PLAN.md checkboxes. Escalate to yourself (Pro) any task where Flash fails twice or correctness is uncertain."
+    },
+    "test": {
+      "description": "Run the appropriate project test suite and report results.",
+      "agent": "architect",
+      "template": "Run the project's test suite and report real results (never fabricate). Prefer the project's configured runner (e.g. `pytest -q`, or the make/uv/poetry target defined in the repo). Run CPU tests locally on the Mac. GPU tests under tests/gpu/** run on the Jetson via the `jetson-orin` SSH alias — only run those if a GPU run is explicitly in scope. Summarize passed/failed/skipped, paste failing output, and if anything fails, either fix it or record it under 'known failures' in STATUS.md."
+    },
+    "jetson-check": {
+      "description": "Coordinate Jetson deployment / GPU verification over SSH.",
+      "agent": "architect",
+      "template": "Coordinate a Jetson deployment/GPU verification pass. The Jetson SSH alias is `jetson-orin`. Only ONE agent controls Jetson deployment at a time — take ownership by recording a claim in STATUS.md before starting and release it when done. Allowed: inspect the Jetson, clone/pull/sync this repo, create venvs, install safe project deps, compile CUDA, run GPU tests + benchmarks, start/stop CUDAQuant-Jetson, inspect logs. FORBIDDEN: reflashing, wiping unrelated dirs, destructive OS changes, touching unrelated services. Report device state, build result, GPU test results, and update STATUS.md 'Jetson deployment state'."
+    },
+    "audit-prep": {
+      "description": "Run tests and prepare a clean repository state for an independent Codex review.",
+      "agent": "architect",
+      "template": "Prepare the repo for an independent Codex audit. Steps: (1) ensure the working tree is clean and pushed (commit/push any pending logical units); (2) run the full test suite and record real results; (3) update STATUS.md with the exact commit hash, milestone, test state, and known failures; (4) ensure AUDIT.md lists the commit to be inspected and any areas of concern; (5) confirm NO secrets are staged/committed (grep for API keys, check .gitignore covers .env / auth files). Output the commit hash Codex should review and a short scope note. Do not weaken any application trading safeguard to make tests pass."
+    }
+  }
+}
