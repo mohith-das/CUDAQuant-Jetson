@@ -5,7 +5,11 @@
 > Remove entries when resolved.
 
 ## Open
-- **RAPIDS cuML RandomForest GPU path blocked** — cuML 26.8.0 (installed via pip) requires CUDA 12 runtime libraries (`libnvrtc.so.12`) but Jetson Orin runs CUDA 13.2. Attempted: installed `cuml-cu12 26.8.0` via pip, verified libraries exist under `site-packages/libcuml/lib64/` and `site-packages/libcuvs/lib64/`, set `LD_LIBRARY_PATH` to include both, but import fails with `ImportError: libnvrtc.so.12: cannot open shared object file`. The system provides `libnvrtc.so` (CUDA 13) only — no CUDA 12 compatibility. No `cuml-cu13` package exists yet on PyPI (checked 2026-08-09). **Impact:** RandomForest remains CPU-only (sklearn). Logistic regression has a working GPU path via torch (Jetson-Orin-Wheels build for CUDA 13.2/SM 8.7).
+- **Systemd installation requires manual sudo** — `scripts/cudaquant.service` is a
+  ready-to-use template (uses `EnvironmentFile=.env`, not hardcoded config).
+  Installation command: `sudo cp scripts/cudaquant.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now cudaquant`.
+  Cannot be automated from the OpenCode harness (sudo requires a TTY/password over SSH).
+  Server currently runs via manual `infisical run ... nohup` on Tailscale IP 100.109.22.68:8000.
 
 ## Known limitations (not external blockers — tracked for completeness)
 These are intentional defaults or incomplete work, not unavailable external
