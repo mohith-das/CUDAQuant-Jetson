@@ -66,24 +66,54 @@ GPU: PyTorch SGD on CUDA.
 
 ---
 
-## 4. Batched experiment engine
+## 4. Batched experiment engine — profiling breakdown
 
 Grid search: 4 lookback values × 3 exit_lookback values = 12 combinations,
 n=200 bars of 5-min data.
 
-| Mode | Time | Speedup |
-|---|---|---|
-| Sequential | 11,905 ms | — |
-| Batched (pre-computed features) | 11,912 ms | 1.0× |
+Profiling via `BatchedExperimentRunner.benchmark_sequential_vs_batched()`:
 
-**No significant speedup from batching** — the backtester walk-forward loop dominates runtime (>99%), not feature computation. Feature pre-computation is ~0.1% of total experiment time at this scale. The batched runner infrastructure is in place for future GPU-backtester acceleration.
+| Component | Time | % of total |
+|---|---|---|
+| Feature pre-computation (all windows) | <1 ms | <0.01% |
+| Single backtest | ~990 ms | — |
+| All 12 backtests (sequential) | ~11,900 ms | >99.99% |
+
+**Feature pre-computation is <0.01% of total runtime** — the backtester's
+walk-forward loop dominates completely. The `_precompute_features()` method is
+retained as API surface for a future GPU-accelerated backtester but is
+intentionally not wired into `run_grid()`: eliminating redundant feature
+computation cannot meaningfully improve throughput while the backtester
+remains the bottleneck.
 
 ---
 
-## 5. GPU vs CPU parity
+## 5. ML — logistic regression parity (GPU torch vs CPU sklearn)
+
+Reproduction: `LD_LIBRARY_PATH=$PWD/cuda/lib:/usr/local/cuda/lib64 .venv/bin/python benchmarks/ml_gpu_parity.py`
+
+n=5,000 samples, 10 features, 200 epochs.
+GPU: TSLogisticRegressionGPU (torch SGD). CPU: sklearn LogisticRegression (liblinear).
+
+| Metric | GPU | CPU |
+|---|---|---|
+| Training time | ~900 ms | ~1,600 ms |
+| Prediction agreement | 99.3% | — |
+| Probability correlation | 0.92 | — |
+| Accuracy | 98.5% | 98.5% |
+
+Prediction agreement and accuracy are essentially identical between GPU and CPU
+paths — the different optimization methods (SGD vs liblinear) converge to the
+same solution on this well-conditioned synthetic data. Training time varies with
+the number of epochs; sklearn's liblinear converges in fewer iterations for
+small n but torch SGD may win at larger scales.
+
+---
+
+## 6. GPU vs CPU feature parity
 
 All dispatched features match CPU reference within documented tolerances.
-See `tests/gpu/test_gpu_parity.py` (8/8 passing on Jetson).
+See `tests/gpu/test_gpu_parity.py` (8/8 passing on Jetson at commit a25fcb7).
 
 ---
 
@@ -93,9 +123,12 @@ All numbers above were reproduced with:
 ```bash
 ssh matt@matt.local
 cd ~/code/cudaquant
-git log --oneline -1  # verify commit matches
-.venv/bin/python benchmarks/measure_crossover.py  # thresholds
-.venv/bin/python benchmarks/gpu_benchmark.py       # feature throughput
+git log --oneline -1  # verify commit matches (must be a25fcb7 or later)
+.venv/bin/python benchmarks/measure_crossover.py  # thresholds (section 1)
+.venv/bin/python benchmarks/gpu_benchmark.py       # feature throughput (section 2)
+LD_LIBRARY_PATH=$PWD/cuda/lib:/usr/local/cuda/lib64 .venv/bin/python benchmarks/ml_gpu_parity.py  # ML parity (section 5)
+LD_LIBRARY_PATH=$PWD/cuda/lib:/usr/local/cuda/lib64 .venv/bin/python -m pytest tests/gpu/ -v  # GPU parity (section 6)
 ```
 
-**Previous stale numbers removed.** The old n=100k-only measurements (which showed rolling_zscore 3.4x and rolling_std 2.2x) are superseded by the per-function crossover analysis above.
+**Previous stale numbers removed.** The old n=100k-only measurements are
+superseded by the per-function crossover analysis in section 1.

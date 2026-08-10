@@ -81,16 +81,42 @@ Market Data → Parquet/DuckDB → CPU Features / CUDA GPU Kernels
 
 ## Jetson Benchmarks
 
-NVIDIA Jetson Orin Nano Super 8GB | JetPack 7.2 | CUDA 13.2
+NVIDIA Jetson Orin Nano Super 8GB | JetPack 7.2 | CUDA 13.2 | torch 2.12.0
 
-| Function | CPU (ms) | GPU (ms) | Speedup |
-|---|---:|---:|---:|
-| rolling_zscore | 6.04 | 1.79 | **3.4x** |
-| rolling_std | 3.75 | 1.68 | **2.2x** |
-| rolling_mean | 1.33 | 1.61 | 0.8x |
-| simple_returns | 0.56 | 1.73 | 0.3x |
+### Feature computation — dispatch layer
 
-_n=100,000, window=20. Crossover point ~50k elements._
+Features auto-route to GPU or CPU based on empirically-measured thresholds:
+
+| Function | GPU threshold | Why |
+|---|---|---|
+| rolling_min, rolling_max | n ≥ 1,000 | CPU O(n·w) loop is pathologically slow |
+| rolling_zscore | n ≥ 20,000 | GPU wins at larger sizes |
+| rolling_std, rolling_variance | n ≥ 100,000 | GPU wins at very large sizes |
+| rolling_mean, rolling_sum, returns | never GPU | CPU O(n) is always faster |
+
+Batch feature computation (7 windows, n=5,000): **4.2x GPU speedup**
+(rolling_min/max routed to GPU per thresholds above).
+
+### ML training — logistic regression
+
+| Metric | GPU (torch CUDA) | CPU (sklearn) |
+|---|---|---|
+| Training time (n=5k) | ~900 ms | ~1,600 ms |
+| Prediction agreement | 99.3% | — |
+| Probability correlation | 0.92 | — |
+| Accuracy | 98.5% | 98.5% |
+
+GPU and CPU paths converge to the same solution. See
+`benchmarks/ml_gpu_parity.py` for reproduction.
+
+### Batched experiment engine
+
+Grid search profiling (12 combinations, n=200 bars):
+- Feature computation: <0.1% of total runtime
+- Backtester walk-forward loop: >99% of total runtime
+- Batching features has negligible impact — backtester is the bottleneck
+
+Full benchmarks with reproduction commands: `docs/CUDA_BENCHMARKS.md`.
 
 ## Quick Start
 

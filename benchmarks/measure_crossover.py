@@ -1,16 +1,56 @@
 #!/usr/bin/env python3
 """Measure CPU vs GPU crossover points on Jetson."""
 import time
+
 import numpy as np
+
 from cudaquant.features.engine import (
-    rolling_mean as cpu_m, rolling_std as cpu_s, rolling_zscore as cpu_z,
-    rolling_min as cpu_min, rolling_max as cpu_max, rolling_sum as cpu_sum,
-    rolling_variance as cpu_v, returns as cpu_ret,
+    returns as cpu_ret,
+)
+from cudaquant.features.engine import (
+    rolling_max as cpu_max,
+)
+from cudaquant.features.engine import (
+    rolling_mean as cpu_m,
+)
+from cudaquant.features.engine import (
+    rolling_min as cpu_min,
+)
+from cudaquant.features.engine import (
+    rolling_std as cpu_s,
+)
+from cudaquant.features.engine import (
+    rolling_sum as cpu_sum,
+)
+from cudaquant.features.engine import (
+    rolling_variance as cpu_v,
+)
+from cudaquant.features.engine import (
+    rolling_zscore as cpu_z,
 )
 from cudaquant.features.gpu.kernels import (
-    gpu_rolling_mean as gpu_m, gpu_rolling_std as gpu_s, gpu_rolling_zscore as gpu_z,
-    gpu_rolling_min as gpu_min, gpu_rolling_max as gpu_max, gpu_rolling_sum as gpu_sum,
-    gpu_rolling_variance as gpu_v, gpu_simple_returns as gpu_ret,
+    gpu_rolling_max as gpu_max,
+)
+from cudaquant.features.gpu.kernels import (
+    gpu_rolling_mean as gpu_m,
+)
+from cudaquant.features.gpu.kernels import (
+    gpu_rolling_min as gpu_min,
+)
+from cudaquant.features.gpu.kernels import (
+    gpu_rolling_std as gpu_s,
+)
+from cudaquant.features.gpu.kernels import (
+    gpu_rolling_sum as gpu_sum,
+)
+from cudaquant.features.gpu.kernels import (
+    gpu_rolling_variance as gpu_v,
+)
+from cudaquant.features.gpu.kernels import (
+    gpu_rolling_zscore as gpu_z,
+)
+from cudaquant.features.gpu.kernels import (
+    gpu_simple_returns as gpu_ret,
 )
 
 window = 20
