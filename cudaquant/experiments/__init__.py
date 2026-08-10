@@ -7,6 +7,7 @@ from cudaquant.experiments.engine import (
     ExperimentOrigin,
     ExperimentStatus,
 )
+from cudaquant.experiments.runner import BatchedExperimentRunner
 
 __all__ = [
     "Experiment",
@@ -14,4 +15,5 @@ __all__ = [
     "ExperimentEngine",
     "ExperimentOrigin",
     "ExperimentStatus",
+    "BatchedExperimentRunner",
 ]

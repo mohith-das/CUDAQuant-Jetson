@@ -1,61 +1,101 @@
 # CUDA Benchmarks — CUDAQuant-Jetson
 
-> Real results. Never fabricated.
-> Device: NVIDIA Jetson Orin Nano Super 8GB (nvgpu)
+> Real results. Never fabricated. Re-measured 2026-08-09.
+> Device: NVIDIA Jetson Orin Nano Super 8GB (nvgpu, SM 8.7)
 > JetPack 7.2, CUDA 13.2, Driver 595.78
-> Date: 2026-08-09 | Commit: (current)
+> Torch: 2.12.0 (Jetson-Orin-Wheels build for CUDA 13.2/SM 8.7)
+> CuPy: 14.1.1 (cupy-cuda13x)
+> Commit: current
 
-## Test setup
-- CPU: Python 3.12.3, NumPy float64 reference implementations
-- GPU: CUDA C++ float32 kernels, ctypes bindings, pinned memory transfers
-- Window size: 20
-- Runs: 5 per test, median reported
+---
 
-## Scaling — rolling_mean
+## 1. Feature dispatch — crossover thresholds
 
-| Array size | CPU (ms) | GPU (ms) | Speedup |
-|-----------:|---------:|---------:|--------:|
-| 1,000     | 0.10     | 16.25    | 0.0x   |
-| 10,000    | 0.25     | 1.23     | 0.2x   |
-| 100,000   | 1.82     | 1.82     | 1.0x   |
+Empirically measured per-function thresholds where GPU beats CPU.
+Below threshold: CPU faster (GPU launch + transfer overhead dominates).
+Above threshold: GPU wins.
 
-## Detailed — n=100,000, window=20
+Measured: `benchmarks/measure_crossover.py`, n_runs=5, window=20.
 
-| Function       | CPU (ms) | GPU (ms) | Speedup |
-|---------------:|---------:|---------:|--------:|
-| rolling_mean   | 1.33     | 1.61     | 0.8x   |
-| rolling_std    | 3.75     | 1.68     | 2.2x   |
-| simple_returns | 0.56     | 1.73     | 0.3x   |
-| rolling_zscore | 6.04     | 1.79     | 3.4x   |
+| Function | Threshold | Why |
+|---|---|---|
+| rolling_min | **1,000** | CPU O(n·w) loop is pathologically slow; GPU wins early |
+| rolling_max | **1,000** | Same as rolling_min |
+| rolling_zscore | **20,000** | GPU wins at 20k+ |
+| rolling_std | **100,000** | GPU wins at 100k |
+| rolling_variance | **100,000** | GPU wins at 100k |
+| rolling_mean | ∞ (never GPU) | CPU O(n) cumsum always wins |
+| rolling_sum | ∞ (never GPU) | CPU O(n) cumsum always wins |
+| returns | ∞ (never GPU) | CPU O(n) trivially fast |
 
-## Analysis
+---
 
-**Crossover point:** ~50k–100k elements. Below this, GPU launch + PCIe transfer
-overhead dominates. Above this, GPU kernels begin to beat CPU, especially for
-compute-intensive operations.
+## 2. Feature computation — batch GPU speedup
 
-**Best case:** `rolling_zscore` (3.4x) — amortizes the single memory transfer
-across mean, variance, and z-score computation in one kernel pass.
+All features computed for 7 window sizes at n=5,000 bars (typical experiment size).
 
-**Worst case:** `simple_returns` (0.3x) — trivial O(n) operation where GPU
-overhead exceeds CPU execution time at this array size.
+| Mode | Time | GPU calls | CPU calls |
+|---|---|---|---|
+| Sequential (all CPU) | 99 ms | 0 | 35 |
+| Dispatch (auto GPU/CPU) | **24 ms** | 14 | 21 |
+| **Speedup** | **4.2x** | | |
 
-**Numerical precision:** GPU uses float32; CPU reference uses float64. Results
-match within:
-- Mean/min/max/sum/returns: < 1e-4
-- Std/variance/zscore: < 5e-2 (float32 catastrophic cancellation in `E[X^2] - E[X]^2`)
-- Acceptable for feature computation; improvement possible with Welford's algorithm
+Breakdown by function at n=5,000:
+| Function | Time | Backend |
+|---|---|---|
+| rolling_min (7 windows) | 8 ms | GPU |
+| rolling_max (7 windows) | 11 ms | GPU |
+| rolling_mean (7 windows) | <1 ms | CPU |
 
-## Known limitations
-1. Naive per-element window recomputation (no shared memory sliding window)
-2. Single CUDA stream — no concurrent kernel execution
-3. No kernel fusion across different feature types
-4. Float32 precision limits for variance computation
-5. Small Jetson GPU (1024 CUDA cores) limits parallelism scaling
+---
 
-## Optimization opportunities
-- Shared-memory sliding window for rolling stats (expected 2-5x improvement)
-- Warp-level reductions for mean/variance
-- CUDA stream overlap for multi-symbol processing
-- Kernel fusion: compute multiple features in single pass
-- Pinned memory staging for reduced transfer latency
+## 3. GPU ML — logistic regression training
+
+Torch CUDA vs sklearn CPU at n=5,000 samples, 10 features, 200 epochs.
+CPU: sklearn LogisticRegression (liblinear solver).
+GPU: PyTorch SGD on CUDA.
+
+| Metric | GPU | CPU |
+|---|---|---|
+| Training time | ~200 ms | ~15 ms |
+| Prediction agreement | 99.3% | — |
+| Probability correlation | 0.923 | — |
+| Accuracy | 98.5% | 98.5% |
+
+**Note:** GPU training is slower than CPU for this model size (sklearn's liblinear is highly optimized for small n). GPU advantage emerges at larger n (100k+ samples) where sklearn's memory usage grows and torch's batched GPU SGD scales better. For the typical experiment sizes in this repo, CPU sklearn is preferred.
+
+---
+
+## 4. Batched experiment engine
+
+Grid search: 4 lookback values × 3 exit_lookback values = 12 combinations,
+n=200 bars of 5-min data.
+
+| Mode | Time | Speedup |
+|---|---|---|
+| Sequential | 11,905 ms | — |
+| Batched (pre-computed features) | 11,912 ms | 1.0× |
+
+**No significant speedup from batching** — the backtester walk-forward loop dominates runtime (>99%), not feature computation. Feature pre-computation is ~0.1% of total experiment time at this scale. The batched runner infrastructure is in place for future GPU-backtester acceleration.
+
+---
+
+## 5. GPU vs CPU parity
+
+All dispatched features match CPU reference within documented tolerances.
+See `tests/gpu/test_gpu_parity.py` (8/8 passing on Jetson).
+
+---
+
+## Reproduction
+
+All numbers above were reproduced with:
+```bash
+ssh matt@matt.local
+cd ~/code/cudaquant
+git log --oneline -1  # verify commit matches
+.venv/bin/python benchmarks/measure_crossover.py  # thresholds
+.venv/bin/python benchmarks/gpu_benchmark.py       # feature throughput
+```
+
+**Previous stale numbers removed.** The old n=100k-only measurements (which showed rolling_zscore 3.4x and rolling_std 2.2x) are superseded by the per-function crossover analysis above.

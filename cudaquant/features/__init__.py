@@ -1,6 +1,10 @@
-"""Feature engineering — CPU reference implementations and GPU bindings."""
+"""Feature engineering — CPU reference implementations and GPU dispatch.
 
-from cudaquant.features.engine import (
+All consumers should import from cudaquant.features (this package) to
+automatically get the fastest backend via the dispatch layer.
+"""
+
+from cudaquant.features.dispatch import (
     atr,
     distance_from_high,
     distance_from_low,

@@ -5,6 +5,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# ── GPU library path ─────────────────────────────────────────────────────────
+# Required for CUDA kernels, torch, and any RAPIDS libs to resolve.
+export LD_LIBRARY_PATH="${SCRIPT_DIR}/cuda/lib:/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}"
+
 # ── Activate venv ──────────────────────────────────────────────────────────────
 if [ -f ".venv/bin/activate" ]; then
     source .venv/bin/activate

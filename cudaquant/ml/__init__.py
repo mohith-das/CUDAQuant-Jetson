@@ -1,5 +1,10 @@
 """ML models, training, inference, model registry."""
 
+from cudaquant.ml.gpu_models import (
+    TSLogisticRegressionGPU,
+    create_logistic_regression,
+    get_ml_backend,
+)
 from cudaquant.ml.models import (
     TSLogisticRegression,
     TSRandomForest,
@@ -12,6 +17,9 @@ from cudaquant.ml.registry import ModelRecord, ModelRegistry, ModelStatus
 __all__ = [
     "TSLogisticRegression",
     "TSRandomForest",
+    "TSLogisticRegressionGPU",
+    "create_logistic_regression",
+    "get_ml_backend",
     "evaluate_classifier",
     "prepare_features",
     "prepare_targets",

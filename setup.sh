@@ -48,6 +48,8 @@ if [ "$IS_JETSON" = true ] && [ -d "/usr/local/cuda" ]; then
     echo ""
     echo "Building CUDA kernels..."
     bash cuda/build.sh
+    # Set LD_LIBRARY_PATH for GPU libraries
+    echo 'export LD_LIBRARY_PATH="$SCRIPT_DIR/cuda/lib:/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}"' >> .venv/bin/activate
 fi
 
 # ── Create data directories ────────────────────────────────────────────────────

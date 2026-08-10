@@ -7,7 +7,7 @@ risk assumptions, and experiment origin. All strategies MUST NOT look ahead in d
 import numpy as np
 import pandas as pd
 
-from cudaquant.features.engine import rolling_max, rolling_min, rolling_zscore
+from cudaquant.features import rolling_max, rolling_min, rolling_zscore
 from cudaquant.strategies.base import Strategy
 
 
