@@ -1,7 +1,11 @@
 # CUDAQuant-Jetson systemd service
-# Copy to /etc/systemd/system/cudaquant.service and edit paths as needed.
-# Enable: sudo systemctl enable cudaquant
-# Start:  sudo systemctl start cudaquant
+# Copy to /etc/systemd/system/cudaquant.service:
+#   sudo cp scripts/cudaquant.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cudaquant
+#
+# Reads HOST/PORT/API_AUTH_TOKEN from .env via EnvironmentFile —
+# nothing hardcoded here that would silently override real config.
 
 [Unit]
 Description=CUDAQuant-Jetson API Server
@@ -11,11 +15,9 @@ After=network.target
 Type=simple
 User=matt
 WorkingDirectory=/home/matt/code/cudaquant
+EnvironmentFile=/home/matt/code/cudaquant/.env
 Environment="PATH=/home/matt/code/cudaquant/.venv/bin:/usr/local/cuda/bin:/usr/bin:/bin"
 Environment="LD_LIBRARY_PATH=/home/matt/code/cudaquant/cuda/lib:/usr/local/cuda/lib64"
-Environment="API_AUTH_TOKEN=change-me"
-Environment="HOST=127.0.0.1"
-Environment="PORT=8000"
 ExecStart=/home/matt/code/cudaquant/.venv/bin/python -m uvicorn cudaquant.api.app:app --host ${HOST} --port ${PORT} --log-level info
 Restart=on-failure
 RestartSec=5

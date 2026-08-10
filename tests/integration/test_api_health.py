@@ -4,23 +4,15 @@ These hit the real ASGI app through Starlette's TestClient — exercising
 ``cudaquant.api.app`` and ``cudaquant.api.routes.health`` end to end.
 They also assert the SAFETY invariant that live trading is OFF by default,
 which the readiness probe must faithfully report.
+
+Test isolation (temp DB, no production DB touch) is handled by the
+root conftest.py's pytest_configure hook — no per-file env setup needed.
 """
 
-import os
-import tempfile
-from pathlib import Path
-
 import pytest
+from fastapi.testclient import TestClient
 
-# Isolate from production DB BEFORE importing the app
-_test_dir = Path(tempfile.mkdtemp(prefix="cudaquant_test_"))
-_test_dir.mkdir(exist_ok=True)
-os.environ["DUCKDB_PATH"] = str(_test_dir / "cudaquant.duckdb")
-os.environ["DATA_DIR"] = str(_test_dir)
-
-from fastapi.testclient import TestClient  # noqa: E402
-
-from cudaquant.api.app import app  # noqa: E402
+from cudaquant.api.app import app
 
 pytestmark = pytest.mark.integration
 
