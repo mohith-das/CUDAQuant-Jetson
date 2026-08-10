@@ -275,8 +275,11 @@ class SchedulerService:
                 )
             """)
             con.close()
+        except ImportError:
+            logger.info("duckdb not available — Scheduler running in-memory only")
         except Exception as e:
-            logger.warning("Scheduler DB init failed: %s", e)
+            logger.error("Scheduler DB init failed: %s", e, exc_info=True)
+            raise
 
     def _persist_state(self) -> None:
         if not self._db_path:
@@ -296,8 +299,11 @@ class SchedulerService:
                 [json.dumps(state_dict)],
             )
             con.close()
+        except ImportError:
+            logger.debug("duckdb not available — scheduler persist skipped")
         except Exception as e:
-            logger.warning("Scheduler persist failed: %s", e)
+            logger.error("Scheduler persist failed: %s", e, exc_info=True)
+            raise
 
     def _load_state(self) -> None:
         try:
@@ -319,5 +325,8 @@ class SchedulerService:
                             config.last_run = cfg.get("last_run")
                             config.last_result = cfg.get("last_result")
                 self._state.auto_execute_enabled = data.get("auto_execute_enabled", False)
+        except ImportError:
+            logger.debug("duckdb not available — scheduler load skipped")
         except Exception as e:
-            logger.warning("Scheduler load failed: %s", e)
+            logger.error("Scheduler load failed: %s", e, exc_info=True)
+            raise

@@ -4,11 +4,14 @@ Every experiment is traceable: hypothesis, origin, parameter changes,
 metrics, status, and lineage. Supports automated search within budgets.
 """
 
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ExperimentStatus(str, Enum):
@@ -345,9 +348,11 @@ class ExperimentEngine:
                 )
             """)
             con.close()
+        except ImportError:
+            logger.info("duckdb not available — ExperimentEngine running in-memory only")
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning("Experiment DB init failed: %s", e)
+            logger.error("Experiment DB init failed: %s", e, exc_info=True)
+            raise
 
     def _persist(self, exp: Experiment) -> None:
         """Save one experiment to DuckDB."""
@@ -376,9 +381,11 @@ class ExperimentEngine:
                 exp.runtime_ms, exp.notes,
             ])
             con.close()
+        except ImportError:
+            logger.debug("duckdb not available — experiment persist skipped")
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning("Experiment persist failed: %s", e)
+            logger.error("Experiment persist failed: %s", e, exc_info=True)
+            raise
 
     def _load_all(self) -> None:
         """Load all experiments from DuckDB."""
@@ -411,9 +418,11 @@ class ExperimentEngine:
                     notes=row[20] or "",
                 )
                 self._experiments[exp.experiment_id] = exp
+        except ImportError:
+            logger.debug("duckdb not available — experiment load skipped")
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning("Experiment load failed: %s", e)
+            logger.error("Experiment load failed: %s", e, exc_info=True)
+            raise
 
 
 # ── Shared singleton ─────────────────────────────────────────────────────────

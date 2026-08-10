@@ -4,9 +4,12 @@ Stores metadata in DuckDB/SQLite. Tracks model lineage, training parameters,
 metrics, calibration, and champion/challenger status.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 
 class ModelStatus(str, Enum):
@@ -56,8 +59,8 @@ class ModelRegistry:
 
     def _init_db(self) -> None:
         """Initialize registry table if using persistent storage."""
+        import duckdb
         try:
-            import duckdb
             con = duckdb.connect(self._db_path)
             con.execute("""
                 CREATE TABLE IF NOT EXISTS model_registry (
@@ -83,7 +86,10 @@ class ModelRegistry:
             """)
             con.close()
         except ImportError:
-            pass
+            logger.info("duckdb not available — ModelRegistry running in-memory only")
+        except Exception as e:
+            logger.error("ModelRegistry DB init failed: %s", e, exc_info=True)
+            raise
 
     def register(self, record: ModelRecord) -> str:
         """Register a new model. Returns model_id."""
@@ -185,8 +191,11 @@ class ModelRegistry:
                 record.promoted_at, record.retired_at, record.notes,
             ])
             con.close()
-        except (ImportError, Exception):
-            pass
+        except ImportError:
+            logger.debug("duckdb not available — model persist skipped")
+        except Exception as e:
+            logger.error("ModelRegistry persist failed: %s", e, exc_info=True)
+            raise
 
     def _load_all(self) -> None:
         """Load all models from DuckDB."""
@@ -214,8 +223,11 @@ class ModelRegistry:
                     retired_at=row[16], notes=row[17] or "",
                 )
                 self._models[record.model_id] = record
-        except (ImportError, Exception):
-            pass
+        except ImportError:
+            logger.debug("duckdb not available — model load skipped")
+        except Exception as e:
+            logger.error("ModelRegistry load failed: %s", e, exc_info=True)
+            raise
 
 
 # ── Shared singleton ─────────────────────────────────────────────────────────
