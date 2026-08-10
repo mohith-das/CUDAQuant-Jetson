@@ -1,10 +1,10 @@
 # STATUS.md — Current Repository State
 
-- **Last updated:** 2026-08-10 (GPU integration milestone complete)
+- **Last updated:** 2026-08-10 (correction pass — hardware-verified at f3634f7)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** a467bcc (GPU integration) — run `git log -1 --oneline` for latest
-- **Current milestone:** GPU Integration COMPLETE. M4 (UI, Alpaca, CI, docs) remaining.
+- **Current commit:** f3634f7 (GPU integration correction pass)
+- **Jetson verified at:** f3634f7 (`git rev-parse HEAD` on jetson-orin matches)
 
 ## Completed: GPU Integration
 
@@ -44,14 +44,16 @@
 - `LD_LIBRARY_PATH` baked into setup.sh and start.sh
 
 ### 6. Tests
-- **109/109 CPU unit tests** pass on macOS (including 14 new dispatch tests)
-- **8/8 GPU parity tests** pass on Jetson (real hardware, not skipped)
-- Ruff check: clean (0 errors)
+- **123/123 CPU tests pass** on macOS (+ 1 skipped GPU test — expected, no GPU lib on Mac)
+- **8/8 GPU parity tests pass** on Jetson at f3634f7 (real hardware, verified — not skipped)
+- **ML parity benchmark** runs from committed script: 99.3% agreement, 92.3% prob correlation, 98.5% accuracy
+- Ruff: 0 errors (verified)
 
 ### 7. Docs
 - DECISIONS.md: ADR-0006 (torch wheel), ADR-0007 (dispatch thresholds), ADR-0008 (GPU ML)
 - BLOCKERS.md: RAPIDS cuML RandomForest documented with evidence
-- CUDA_BENCHMARKS.md: fully re-measured
+- CUDA_BENCHMARKS.md: fully re-measured with committed reproduction scripts
+- README.md: synced to CUDA_BENCHMARKS.md actual numbers
 
 ## Known limitations
 - RAPIDS cuML RandomForest: blocked by CUDA 12 vs 13.2 (BLOCKERS.md)
