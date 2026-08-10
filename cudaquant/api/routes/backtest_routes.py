@@ -56,7 +56,17 @@ def run_backtest(payload: dict):
     if cls is None:
         raise HTTPException(400, f"Unknown strategy: {strat_name}")
 
-    strategy = cls(**params)
+    # Validate required string params for strategies that need them
+    if strat_name == "pairs_relative_value":
+        for req in ("symbol_a", "symbol_b"):
+            val = params.get(req, "").strip() if isinstance(params.get(req), str) else ""
+            if not val:
+                raise HTTPException(400, f"'{req}' is required for pairs_relative_value strategy")
+
+    try:
+        strategy = cls(**params)
+    except TypeError as e:
+        raise HTTPException(400, f"Invalid parameters: {e}") from e
 
     gen = SyntheticDataGenerator(seed=42)
     end = datetime.now(timezone.utc)

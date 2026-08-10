@@ -119,10 +119,10 @@ class AlpacaBroker(BrokerAdapter):
         return {
             "id": str(o.id),
             "symbol": o.symbol,
-            "side": str(o.side),
+            "side": str(o.side.value) if hasattr(o.side, 'value') else str(o.side),
             "qty": str(float(o.qty)) if o.qty else "0",
             "filled_qty": str(float(o.filled_qty)) if o.filled_qty else "0",
-            "status": str(o.status),
+            "status": str(o.status.value) if hasattr(o.status, 'value') else str(o.status),
             "type": str(o.type),
             "limit_price": str(o.limit_price) if o.limit_price else None,
             "submitted_at": str(o.submitted_at) if o.submitted_at else None,
@@ -138,10 +138,10 @@ class AlpacaBroker(BrokerAdapter):
             {
                 "id": str(o.id),
                 "symbol": o.symbol,
-                "side": str(o.side),
+                "side": str(o.side.value) if hasattr(o.side, 'value') else str(o.side),
                 "qty": str(float(o.qty)) if o.qty else "0",
                 "filled_qty": str(float(o.filled_qty)) if o.filled_qty else "0",
-                "status": str(o.status),
+                "status": str(o.status.value) if hasattr(o.status, 'value') else str(o.status),
                 "submitted_at": str(o.submitted_at) if o.submitted_at else None,
             }
             for o in orders

@@ -12,7 +12,7 @@ import System from "./pages/System";
 import Scheduler from "./pages/Scheduler";
 import LLMInbox from "./pages/LLMInbox";
 import ModelComparison from "./pages/ModelComparison";
-import "./App.css";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 const nav = [
   { to: "/", label: "Dashboard" },
@@ -44,6 +44,7 @@ export default function App() {
             </div>
           </nav>
           <main className="main">
+            <ErrorBoundary>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/data" element={<DataExplorer />} />
@@ -57,6 +58,7 @@ export default function App() {
               <Route path="/scheduler" element={<Scheduler />} />
               <Route path="/system" element={<System />} />
             </Routes>
+            </ErrorBoundary>
           </main>
         </div>
       </BrowserRouter>

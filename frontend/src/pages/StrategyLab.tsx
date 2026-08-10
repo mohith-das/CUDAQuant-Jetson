@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { createChart } from "lightweight-charts";
+import { createChart, LineSeries, AreaSeries } from "lightweight-charts";
 import { apiFetch } from "../api";
 import { useQuery } from "@tanstack/react-query";
 
@@ -12,12 +12,17 @@ export default function StrategyLab() {
   const [result, setResult] = useState<Record<string,unknown> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [elapsed, setElapsed] = useState(0);
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<ReturnType<typeof createChart> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stratNames = strats ? Object.keys(strats) : [];
   const stratData = strats?.[selected] as Record<string,unknown> | undefined;
-  const schema = stratData?.parameters as Record<string, {default?: number; type?: string}> | undefined;
+  const schema = stratData?.parameters as Record<string, {default?: number|string|null; type?: string}> | undefined;
+  const missingRequired = schema ? Object.entries(schema).some(
+    ([name, info]) => info?.default === null && info?.type === "str" && !params[name]?.trim()
+  ) : false;
 
   useEffect(() => {
     if (schema && Object.keys(params).length === 0) {
@@ -34,6 +39,9 @@ export default function StrategyLab() {
   const runBacktest = async () => {
     setLoading(true);
     setError("");
+    setElapsed(0);
+    const start = Date.now();
+    timerRef.current = setInterval(() => setElapsed(Math.round((Date.now() - start) / 1000)), 1000);
     try {
       const p: Record<string,number> = {};
       Object.entries(params).forEach(([k,v]) => { p[k] = Number(v) || 0; });
@@ -46,6 +54,7 @@ export default function StrategyLab() {
       setError(`Backtest failed: ${(e as Error).message}`);
     } finally {
       setLoading(false);
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
   };
 
@@ -62,19 +71,17 @@ export default function StrategyLab() {
     });
     chartInstance.current = chart;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const line = (chart as any).addLineSeries({
+    const line = chart.addSeries(LineSeries, {
       color: "#2E9BFF", lineWidth: 2,
       lastValueVisible: true, priceLineVisible: false,
     });
-    const area = (chart as any).addAreaSeries({
+    const area = chart.addSeries(AreaSeries, {
       lineColor: "#2E9BFF", topColor: "rgba(46, 155, 255, 0.15)",
-      bottomColor: "rgba(46, 155, 255, 0.02)", lineWidth: 0,
+      bottomColor: "rgba(46, 155, 255, 0.02)", lineWidth: 1,
     });
     const curve = (result.equity_curve as number[]).map((v, i) => ({ time: i as any, value: v }));
     line.setData(curve);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (line as any).createPriceLine({ price: curve[0]?.value ?? 100000, color: "#5B6472", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Initial" });
+    line.createPriceLine({ price: curve[0]?.value ?? 100000, color: "#5B6472", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Initial" });
     area.setData(curve);
     chart.timeScale().fitContent();
     return () => { chart.remove(); chartInstance.current = null; };
@@ -108,8 +115,8 @@ export default function StrategyLab() {
                 />
               </div>
             ))}
-            <button onClick={runBacktest} disabled={loading} style={{ marginTop: "var(--space-3)" }}>
-              {loading ? "Running..." : "Run Backtest"}
+            <button onClick={runBacktest} disabled={loading || missingRequired} style={{ marginTop: "var(--space-3)" }}>
+              {loading ? `Running... (${elapsed}s)` : missingRequired ? "Fill required fields" : "Run Backtest"}
             </button>
           </div>
           <div className="card">

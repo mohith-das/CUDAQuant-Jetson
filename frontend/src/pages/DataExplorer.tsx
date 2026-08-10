@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { createChart } from "lightweight-charts";
+import { createChart, CandlestickSeries } from "lightweight-charts";
 import { apiFetch } from "../api";
 
 export default function DataExplorer() {
@@ -42,8 +42,7 @@ export default function DataExplorer() {
     });
     chartInstance.current = chart;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const candleSeries = (chart as any).addCandlestickSeries({
+    const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#1FAE5C", downColor: "#E5484D", borderUpColor: "#1FAE5C",
       borderDownColor: "#E5484D", wickUpColor: "#1FAE5C", wickDownColor: "#E5484D",
     });
