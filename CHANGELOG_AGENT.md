@@ -2,6 +2,22 @@
 
 > Terse, newest-first. One entry per meaningful handoff so any agent can pick up.
 
+## 2026-08-09 — Verification & test-hardening (Claude Code)
+- Reproduced everything from clean state: fresh venv + `pip install -e .[dev]` → **95/95**.
+- **Lint:** ruff was NOT clean (46 errors). Fixed to **0** (f66c3ec): auto-fixes + scoped
+  N803/N806 ignore for sklearn `X` in ml/models.py + real fixes (E741 `l`→`low`, B905
+  strict zip, SIM102 collapses in 3 strategies (verified equivalent), dead `rel_vol`
+  removed, walk-forward train guarded by hasattr so the in-sample fold is actually used).
+- **Integration/e2e (f791425):** added tests/integration (14 tests) — API health/readiness
+  incl. live-trading-OFF safety assertion; synthetic→strategy→backtester→metrics for 3
+  strategies; determinism; walk-forward chronology + purge; regime labelling. Coverage 32%→45%.
+- **GPU (this commit):** tests/gpu was EMPTY. Added tests/gpu/test_gpu_parity.py (skips
+  off-GPU). Ran on Jetson: **8/8 pass**; benchmark reproduced (zscore 3.3x, std 2.2x).
+  Noted Jetson deploy is rsync (not git). rolling_sum abs-error is float32 accumulation
+  (rel err 5.8e-5), not a bug — test uses rtol for it.
+- **Handoff:** M4 still open. Next: UI, Alpaca, docs, CI, and tests for the 0%-covered
+  modules (ml, experiments, llm, features/engine, providers).
+
 ## 2026-08-09 — M0, M1, M2, M3 complete (architect session)
 - **M0:** Harness validated (already existed). Jetson probed (JetPack 7.2, CUDA 13.2), SSH fixed to matt@matt.local. Wrote docs/JETSON_ENVIRONMENT.md.
 - **M1:** Full project scaffold. Config (26 fields), FastAPI health/readiness, data schemas (Pydantic v2), synthetic generator (7 scenarios), provider ABCs, deterministic backtester (walk-forward, 13 metrics), risk governor (fail-closed), kill switch. 95/95 tests passing. Fixed .gitignore anchoring (/data/ blocking cudaquant/data/).

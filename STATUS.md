@@ -49,9 +49,21 @@ OpenCode multi-agent harness (architect + 8 workers), coordination docs, GitHub 
 - [ ] Codex audit prep
 
 ## Tests
-- **95/95 unit tests passing** on macOS (CPU)
-- GPU tests pass on Jetson with documented float32 precision limits
-- End-to-end smoke test: strategies + backtester + walk-forward + regime detection verified
+- **109/109 CPU tests passing** on macOS (95 unit + 14 integration/e2e). `ruff check` clean.
+- **8/8 GPU parity tests passing on the Jetson** (tests/gpu/test_gpu_parity.py) — GPU
+  vs CPU within documented float32 limits; skips off-GPU so a green run is real hardware.
+- Coverage **45%** (was 32%): strategies 0→61%, walk-forward + regimes + API now exercised.
+- Benchmarks independently reproduced on-device: rolling_zscore 3.3x, rolling_std 2.2x.
+- **Verified by Claude Code review session (commit f791425+):** all claims above re-run
+  from a clean venv / clean SSH, not taken from prior reports.
+
+### Verification findings (open, low severity)
+- `tests/gpu/` was **empty** before this session (no committed parity test) — now added.
+- Jetson `~/cudaquant` is an **rsync copy, not a git clone** → it cannot `git pull`;
+  deploys rely on scripts/deploy_jetson.sh. Consider cloning for reproducibility.
+- Coverage still 0% on: ml/models, ml/registry, experiments/engine, llm/agent,
+  features/engine (CPU features), providers, cli — good targets for M4 tests.
+- `ruff format` would restyle 23 files (separate from lint; not yet applied).
 
 ## Jetson deployment state
 - **SSH:** matt@matt.local (alias jetson-orin)
