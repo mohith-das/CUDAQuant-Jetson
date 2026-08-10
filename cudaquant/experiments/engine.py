@@ -405,3 +405,18 @@ class ExperimentEngine:
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning("Experiment load failed: %s", e)
+
+
+# ── Shared singleton ─────────────────────────────────────────────────────────
+# Used by both API routes and scheduler callbacks to avoid cross-instance
+# staleness (each caller sees the same DB state).
+
+_shared_engine: ExperimentEngine | None = None
+
+
+def get_shared_engine(db_path: str) -> ExperimentEngine:
+    """Return the shared ExperimentEngine singleton for the given db_path."""
+    global _shared_engine
+    if _shared_engine is None:
+        _shared_engine = ExperimentEngine(db_path=db_path)
+    return _shared_engine

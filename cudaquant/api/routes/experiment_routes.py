@@ -4,14 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from cudaquant.api.auth import require_auth
 from cudaquant.config.settings import settings
 from cudaquant.experiments.engine import (
-    ExperimentEngine,
     ExperimentOrigin,
+    get_shared_engine,
 )
 
 router = APIRouter(prefix="/api/experiments", tags=["experiments"], dependencies=[Depends(require_auth)])
 
-# Singleton engine with persistence
-_engine = ExperimentEngine(db_path=settings.DUCKDB_PATH)
+# Shared engine — same instance used by scheduler callbacks and API routes
+_engine = get_shared_engine(settings.DUCKDB_PATH)
 
 
 @router.post("/propose")

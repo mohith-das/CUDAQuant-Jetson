@@ -120,7 +120,7 @@ def _setup_scheduler_callbacks(scheduler):
     from cudaquant.ml.models import TSLogisticRegression, prepare_targets
     from cudaquant.ml.registry import ModelRecord, ModelRegistry, ModelStatus
 
-    registry = ModelRegistry()
+    registry = ModelRegistry(db_path=settings.DUCKDB_PATH)
 
     def ingest_callback():
         gen = SyntheticDataGenerator(seed=42)
@@ -168,8 +168,8 @@ def _setup_scheduler_callbacks(scheduler):
     def llm_analyze_callback():
         agent = LLMResearchAgent()
         proposal = agent.propose_experiment({"champion": "none"})
-        from cudaquant.experiments.engine import ExperimentEngine, ExperimentOrigin
-        engine = ExperimentEngine(db_path=settings.DUCKDB_PATH)
+        from cudaquant.experiments.engine import ExperimentOrigin, get_shared_engine
+        engine = get_shared_engine(settings.DUCKDB_PATH)
         exp = engine.propose(
             hypothesis=proposal.hypothesis,
             origin=ExperimentOrigin.LLM,

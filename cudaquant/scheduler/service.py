@@ -218,6 +218,44 @@ class SchedulerService:
             return False, "SCHEDULER_AUTO_EXECUTE is disabled"
         return True, "ok"
 
+    def execute_champion_signal(
+        self,
+        order_service,  # OrderService instance
+        champion_signal: dict,  # {"symbol": str, "side": str, "qty": int}
+    ) -> tuple[bool, str, str | None]:
+        """Execute a champion's signal through ALL FOUR gates.
+
+        Gate 4 (SCHEDULER_AUTO_EXECUTE) is checked here first.
+        Gates 1-3 (config, RiskGovernor, KillSwitch) are enforced by
+        order_service.submit_order().
+
+        Args:
+            order_service: OrderService instance (enforces gates 1-3).
+            champion_signal: Dict with symbol, side, qty.
+
+        Returns:
+            (success, message, order_id_or_none)
+        """
+        # ── Gate 4: Scheduler auto-execute ──────────────────────────────
+        ok, reason = self.can_auto_execute()
+        if not ok:
+            return False, f"scheduler gate 4: {reason}", None
+
+        # ── Gates 1-3: OrderService (config, RiskGovernor, KillSwitch) ──
+        from cudaquant.data.schemas import Order, OrderSide, OrderType
+
+        try:
+            order = Order(
+                symbol=champion_signal["symbol"],
+                side=OrderSide(champion_signal["side"]),
+                order_type=OrderType.MARKET,
+                qty=champion_signal["qty"],
+            )
+        except (KeyError, ValueError) as e:
+            return False, f"invalid signal: {e}", None
+
+        return order_service.submit_order(order)
+
     # ── DuckDB persistence ──────────────────────────────────────────────────
 
     def _init_db(self) -> None:

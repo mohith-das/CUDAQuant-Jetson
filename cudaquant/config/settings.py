@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     LLM_MAX_CALLS_PER_DAY: int = 50
     LLM_MAX_TOKENS_PER_CALL: int = 8000
 
+    # ── LLM research tools (optional — each degrades gracefully if unset) ──────
+    BRAVE_SEARCH_API_KEY: str | None = None
+    TAVILY_API_KEY: str | None = None
+    FIRECRAWL_API_KEY: str | None = None
+
     # ── Server ────────────────────────────────────────────────────────────────
     HOST: str = "127.0.0.1"
     PORT: int = 8000
