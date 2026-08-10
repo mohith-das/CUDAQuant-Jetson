@@ -36,7 +36,9 @@ cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
 
-# ── Data / models / experiment outputs (keep the repo lean) ────────────────
+# ── Frontend ─────────────────────────────────────────────────────────────────
+frontend/dist/
+frontend/node_modules/
 /data/
 *.parquet
 *.duckdb

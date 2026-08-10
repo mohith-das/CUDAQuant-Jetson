@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     HOST: str = "127.0.0.1"
     PORT: int = 8000
     LOG_LEVEL: str = "INFO"
+    API_AUTH_TOKEN: str = ""  # REQUIRED when HOST != 127.0.0.1
 
     # ── Storage ───────────────────────────────────────────────────────────────
     DATA_DIR: str = "./data"

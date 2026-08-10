@@ -111,7 +111,7 @@ def test_other_numeric_defaults(clean_env):
 
 
 def test_optional_fields_default_to_none(clean_env):
-    settings = Settings()
+    settings = Settings(_env_file=None)  # prevent reading real .env keys
     assert settings.ALPACA_API_KEY is None
     assert settings.ALPACA_SECRET_KEY is None
     assert settings.LLM_PROVIDER is None

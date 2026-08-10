@@ -111,10 +111,14 @@ class ExperimentEngine:
     - Evolutionary mutation of parent experiments
     """
 
-    def __init__(self, budget: ExperimentBudget | None = None):
+    def __init__(self, budget: ExperimentBudget | None = None, db_path: str | None = None):
         self._experiments: dict[str, Experiment] = {}
         self._queue: list[str] = []
         self.budget = budget or ExperimentBudget()
+        self._db_path = db_path
+        if db_path:
+            self._init_db()
+            self._load_all()
 
     def propose(
         self,
@@ -133,6 +137,7 @@ class ExperimentEngine:
             **kwargs,
         )
         self._experiments[exp.experiment_id] = exp
+        self._persist(exp)
         return exp
 
     def enqueue(self, experiment_id: str) -> bool:
@@ -142,6 +147,7 @@ class ExperimentEngine:
             return False
         exp.status = ExperimentStatus.QUEUED
         self._queue.append(experiment_id)
+        self._persist(exp)
         return True
 
     def dequeue(self) -> Experiment | None:
@@ -168,6 +174,7 @@ class ExperimentEngine:
         exp.result = result
         exp.status = status
         self.budget.finish(experiment_id)
+        self._persist(exp)
 
     def grid_search(
         self,
@@ -297,3 +304,105 @@ class ExperimentEngine:
 
     def running_count(self) -> int:
         return len(self.budget._running)
+
+    # ── DuckDB persistence ──────────────────────────────────────────────────
+
+    def _init_db(self) -> None:
+        """Create experiments table if it doesn't exist."""
+        import json
+        try:
+            from cudaquant.storage.db import get_connection
+            con = get_connection()
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS experiments (
+                    experiment_id VARCHAR PRIMARY KEY,
+                    created_at VARCHAR,
+                    hypothesis VARCHAR,
+                    origin VARCHAR,
+                    parent_id VARCHAR,
+                    changed_parameters JSON,
+                    changed_features JSON,
+                    model_family VARCHAR,
+                    model_id VARCHAR,
+                    training_window INTEGER,
+                    validation_window INTEGER,
+                    test_window INTEGER,
+                    cost_model VARCHAR,
+                    metrics JSON,
+                    result VARCHAR,
+                    status VARCHAR,
+                    commit VARCHAR,
+                    seed INTEGER,
+                    backend VARCHAR,
+                    runtime_ms DOUBLE,
+                    notes VARCHAR
+                )
+            """)
+            con.close()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Experiment DB init failed: %s", e)
+
+    def _persist(self, exp: Experiment) -> None:
+        """Save one experiment to DuckDB."""
+        if not self._db_path:
+            return
+        import json
+        try:
+            from cudaquant.storage.db import get_connection
+            con = get_connection()
+            con.execute("""
+                INSERT OR REPLACE INTO experiments VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                )
+            """, [
+                exp.experiment_id, exp.created_at, exp.hypothesis,
+                exp.origin.value, exp.parent_id,
+                json.dumps(exp.changed_parameters),
+                json.dumps(exp.changed_features),
+                exp.model_family, exp.model_id,
+                exp.training_window, exp.validation_window, exp.test_window,
+                exp.cost_model,
+                json.dumps(exp.metrics),
+                exp.result, exp.status.value,
+                exp.commit, exp.seed, exp.backend,
+                exp.runtime_ms, exp.notes,
+            ])
+            con.close()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Experiment persist failed: %s", e)
+
+    def _load_all(self) -> None:
+        """Load all experiments from DuckDB."""
+        if not self._db_path:
+            return
+        import json
+        try:
+            from cudaquant.storage.db import get_connection
+            con = get_connection()
+            rows = con.execute("SELECT * FROM experiments").fetchall()
+            con.close()
+            for row in rows:
+                exp = Experiment(
+                    experiment_id=row[0], created_at=row[1], hypothesis=row[2],
+                    origin=ExperimentOrigin(row[3]), parent_id=row[4],
+                    changed_parameters=json.loads(row[5]) if row[5] else {},
+                    changed_features=json.loads(row[6]) if row[6] else [],
+                    model_family=row[7] or "", model_id=row[8],
+                    training_window=row[9] or 504,
+                    validation_window=row[10] or 252,
+                    test_window=row[11] or 252,
+                    cost_model=row[12] or "baseline",
+                    metrics=json.loads(row[13]) if row[13] else {},
+                    result=row[14] or "",
+                    status=ExperimentStatus(row[15]) if row[15] else ExperimentStatus.PROPOSED,
+                    commit=row[16] or "", seed=row[17] or 42,
+                    backend=row[18] or "cpu",
+                    runtime_ms=float(row[19]) if row[19] else 0.0,
+                    notes=row[20] or "",
+                )
+                self._experiments[exp.experiment_id] = exp
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Experiment load failed: %s", e)
