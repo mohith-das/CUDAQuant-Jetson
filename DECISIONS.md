@@ -321,3 +321,41 @@ assert acceptance instead.
 The stale fractional-qty test must be updated (it currently fails) and the
 int→float migration re-verified (float32 rounding on very small fractions is a
 known numeric consideration). See STATUS.md for the current working-tree state.
+
+## ADR-0017 — Telegram alerting (out-of-band notifications)
+**Date:** 2026-08-10 · **Status:** Accepted (implementation in working tree, uncommitted)
+
+**Context:** Critical events (kill-switch trips, scheduler job failures, models
+ready for human review) are currently only visible in API responses and local
+logs. On the headless Jetson, nobody sees those logs until they SSH in. The
+operator wants cheap, out-of-band notification of the handful of events that
+matter, without adding infrastructure.
+
+**Decision:** Add a minimal `cudaquant/alerts/` package with a `TelegramAlerter`
+that posts to the Telegram Bot API over `httpx` (already a dependency). Configured
+by two new settings fields, `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (both
+default `None`). It is wired at exactly three trigger points:
+- kill-switch trip (`engage_kill_switch`)
+- scheduler job exception (`_run_job` except block)
+- challenger ready for review (`promote_to_challenger`, success only)
+
+**Graceful degradation is a hard requirement:** if either credential is unset —
+the default state — `send()` returns `False` without any network call, and no
+call site wraps existing logic in new try/except. Non-200 responses and network
+exceptions also return `False` (logged at WARNING). Alerting can never raise, so
+it cannot break order/risk/kill-switch paths. Message text is HTML-escaped before
+posting under `parse_mode=HTML` so dynamic content cannot fail the request.
+
+**Alternatives considered:**
+- **SMTP/email:** rejected — SMTP creds and an SMTP server are heavier to set up
+  than a bot token, and email latency/threading is worse for ops alerts.
+- **Self-hosted push (ntfy/Apprise):** viable, but adds a service to run; Telegram
+  requires zero self-hosted infra and is already on the operator's phone.
+- **Webhook to a generic endpoint:** no receiver exists; Telegram is the receiver.
+
+**Consequences:** Alerting is best-effort and silent by default — do not treat a
+`send()` result as a delivery guarantee (Telegram "sendMessage" 200 means accepted
+by the API, not read). New alert call sites should append the fire-and-forget call
+at the end of an existing path and keep messages factual (what happened + UTC
+timestamp). Credentials remain env-only; never commit a real token/chat id.
+Implementation lives in the working tree, **not yet committed** — see STATUS.md.

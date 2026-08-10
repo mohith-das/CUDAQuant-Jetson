@@ -117,10 +117,11 @@ def _setup_scheduler_callbacks(scheduler):
     from cudaquant.data.schemas import BarFrequency
     from cudaquant.data.synthetic import SyntheticDataGenerator
     from cudaquant.llm.agent import LLMResearchAgent
+    from cudaquant.llm.provider_factory import build_llm_provider
     from cudaquant.ml.models import TSLogisticRegression, prepare_targets
-    from cudaquant.ml.registry import ModelRecord, ModelRegistry, ModelStatus
+    from cudaquant.ml.registry import ModelRecord, ModelStatus, get_shared_registry
 
-    registry = ModelRegistry(db_path=settings.DUCKDB_PATH)
+    registry = get_shared_registry(settings.DUCKDB_PATH)
 
     def ingest_callback():
         gen = SyntheticDataGenerator(seed=42)
@@ -166,7 +167,8 @@ def _setup_scheduler_callbacks(scheduler):
         return f"champions={len(champions)}, challengers={len(challengers)}"
 
     def llm_analyze_callback():
-        agent = LLMResearchAgent()
+        provider = build_llm_provider()
+        agent = LLMResearchAgent(provider=provider)
         proposal = agent.propose_experiment({"champion": "none"})
         from cudaquant.experiments.engine import ExperimentOrigin, get_shared_engine
         engine = get_shared_engine(settings.DUCKDB_PATH)

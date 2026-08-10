@@ -27,6 +27,11 @@ _SETTINGS_ENV_VARS = [
     "LLM_MONTHLY_BUDGET_USD",
     "LLM_MAX_CALLS_PER_DAY",
     "LLM_MAX_TOKENS_PER_CALL",
+    "BRAVE_SEARCH_API_KEY",
+    "TAVILY_API_KEY",
+    "FIRECRAWL_API_KEY",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID",
     "HOST",
     "PORT",
     "LOG_LEVEL",
@@ -125,6 +130,20 @@ def test_optional_fields_filled_from_environment(clean_env, monkeypatch):
     settings = Settings()
     assert settings.ALPACA_API_KEY == "pk_test_123"
     assert settings.LLM_API_KEY == "sk_test_456"
+
+
+def test_telegram_fields_default_to_none(clean_env):
+    settings = Settings(_env_file=None)
+    assert settings.TELEGRAM_BOT_TOKEN is None
+    assert settings.TELEGRAM_CHAT_ID is None
+
+
+def test_telegram_fields_filled_from_environment(clean_env, monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123456:ABC-DEF")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "987654321")
+    settings = Settings()
+    assert settings.TELEGRAM_BOT_TOKEN == "123456:ABC-DEF"
+    assert settings.TELEGRAM_CHAT_ID == "987654321"
 
 
 def test_env_overrides_defaults(clean_env, monkeypatch):

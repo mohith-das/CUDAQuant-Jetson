@@ -8,8 +8,9 @@ cd "$SCRIPT_DIR/.."
 
 echo "=== CUDAQuant Cleanup ==="
 
-# Kill stray uvicorn processes on known test ports
-STRAY=$(ps aux | grep '[u]vicorn.*876[5-9]\|877[0-9]' | awk '{print $2}' || true)
+# Kill stray uvicorn processes — match by cudaquant in the process command line,
+# not by a fixed port range, to catch strays regardless of port.
+STRAY=$(ps aux | grep '[u]vicorn.*cudaquant' | awk '{print $2}' || true)
 if [ -n "$STRAY" ]; then
     echo "Killing stray uvicorn: $STRAY"
     kill $STRAY 2>/dev/null || true

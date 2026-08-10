@@ -40,7 +40,23 @@ echo "Dashboard: http://${HOST}:${PORT}/"
 echo "Health:    http://${HOST}:${PORT}/health"
 echo ""
 
-python -m uvicorn cudaquant.api.app:app \
-    --host "$HOST" \
-    --port "$PORT" \
-    --log-level info
+# ── Secrets: prefer Infisical injection, fall back to local .env ───────────────
+INFISICAL_TOKEN_VAL=""
+if [ -f .env ]; then
+    INFISICAL_TOKEN_VAL="$(grep -E '^INFISICAL_TOKEN=' .env | cut -d'=' -f2-)"
+fi
+
+if [ -n "$INFISICAL_TOKEN_VAL" ] && command -v infisical >/dev/null 2>&1; then
+    echo "Secrets: injecting via Infisical (env=dev)"
+    exec infisical run --token="$INFISICAL_TOKEN_VAL" --env=dev -- \
+        python -m uvicorn cudaquant.api.app:app \
+        --host "$HOST" \
+        --port "$PORT" \
+        --log-level info
+else
+    echo "Secrets: reading from local .env (Infisical not configured)"
+    exec python -m uvicorn cudaquant.api.app:app \
+        --host "$HOST" \
+        --port "$PORT" \
+        --log-level info
+fi

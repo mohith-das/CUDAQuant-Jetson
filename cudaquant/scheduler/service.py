@@ -147,6 +147,12 @@ class SchedulerService:
             config.last_result = f"error: {e}"
             config.last_run = datetime.now(timezone.utc).isoformat()
             logger.error("Job %s failed: %s", name, e)
+            from cudaquant.alerts.telegram import TelegramAlerter
+
+            TelegramAlerter().send(
+                f'[CUDAQuant] Scheduler job "{name}" failed: {e} — '
+                f"{datetime.now(timezone.utc).isoformat()}"
+            )
 
     # ── Configuration API (called from REST endpoints) ──────────────────────
 

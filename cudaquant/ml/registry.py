@@ -117,6 +117,12 @@ class ModelRegistry:
         model.status = ModelStatus.CHALLENGER
         model.promoted_at = datetime.utcnow().isoformat()
         self._persist(model)
+        from cudaquant.alerts.telegram import TelegramAlerter
+
+        TelegramAlerter().send(
+            f'[CUDAQuant] Model "{model_id}" promoted to challenger ({model.family}) — '
+            f"{datetime.utcnow().isoformat()}"
+        )
         return True
 
     def promote_to_champion(self, model_id: str) -> bool:
@@ -210,3 +216,18 @@ class ModelRegistry:
                 self._models[record.model_id] = record
         except (ImportError, Exception):
             pass
+
+
+# ── Shared singleton ─────────────────────────────────────────────────────────
+# Used by both API routes and scheduler callbacks to avoid cross-instance
+# staleness — same pattern as ExperimentEngine.get_shared_engine().
+
+_shared_registry: ModelRegistry | None = None
+
+
+def get_shared_registry(db_path: str) -> ModelRegistry:
+    """Return the shared ModelRegistry singleton for the given db_path."""
+    global _shared_registry
+    if _shared_registry is None:
+        _shared_registry = ModelRegistry(db_path=db_path)
+    return _shared_registry

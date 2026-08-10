@@ -22,6 +22,10 @@ dependencies. Listed here per the Part 2 handoff so nobody mistakes them for
   `FIRECRAWL_API_KEY` settings fields exist (added in Correction Pass 3) but no
   Brave/Tavily/Firecrawl client code exists yet. Settings fields are forward
   declarations so pydantic `extra=forbidden` does not reject `.env` values.
+- **Telegram alerting not configured (documented state, not a blocker)** — the
+  `TelegramAlerter` (ADR-0017) reads `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`,
+  which are unset by default; all alert call sites silently no-op until a real bot
+  token + chat id are provided. No credentials exist to paste here.
 - **Crypto support uncommitted / in-flight** — crypto provider, fractional qty,
   and GTC TIF exist only in the working tree (see STATUS.md); the fractional-qty
   test currently fails there pending a stale-assertion update.
@@ -49,3 +53,4 @@ dependencies. Listed here per the Part 2 handoff so nobody mistakes them for
 | GitHub (`gh`, `mohith-das`) | ✅ authenticated, `repo` scope | push to PRIVATE remote |
 | Jetson `jetson-orin` SSH | ✅ alias present, verified working | GPU build/test/deploy |
 | Alpaca API keys | ✅ configured in .env on both machines | live/paper market data + broker |
+| Telegram bot token + chat id | ⬜ unset (optional) | out-of-band alerting (ADR-0017); alerts silently skip until provided |

@@ -3,11 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from cudaquant.api.auth import require_auth
 from cudaquant.config.settings import settings
-from cudaquant.ml.registry import ModelRegistry, ModelStatus
+from cudaquant.ml.registry import ModelStatus, get_shared_registry
 
 router = APIRouter(prefix="/api/models", tags=["models"], dependencies=[Depends(require_auth)])
 
-_registry = ModelRegistry(db_path=settings.DUCKDB_PATH)
+_registry = get_shared_registry(settings.DUCKDB_PATH)
 
 
 @router.get("/")

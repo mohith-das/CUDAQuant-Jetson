@@ -20,6 +20,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from cudaquant.llm.tool_budget import SearchBudget
+
 logger = logging.getLogger(__name__)
 
 
@@ -105,10 +107,28 @@ class LLMResearchAgent:
         self,
         provider: Any = None,
         budget: LLMBudget | None = None,
+        search_tools: dict | None = None,
+        search_budget: SearchBudget | None = None,
+        search_cache: Any = None,
     ):
         self._provider = provider
         self.budget = budget or LLMBudget()
         self._enabled = provider is not None
+        self.search_budget = search_budget or SearchBudget()
+        self.search_cache = search_cache
+        self.search_tools = search_tools
+        if self.search_tools is None:
+            try:
+                from cudaquant.llm.tools import BraveSearchTool, FirecrawlTool, TavilySearchTool
+
+                self.search_tools = {
+                    "brave": BraveSearchTool(),
+                    "tavily": TavilySearchTool(),
+                    "firecrawl": FirecrawlTool(),
+                }
+            except Exception as e:  # pragma: no cover - httpx is a project dependency
+                logger.warning("Web research tools disabled: %s", e)
+                self.search_tools = {}
 
     @property
     def enabled(self) -> bool:
@@ -128,7 +148,8 @@ class LLMResearchAgent:
             return self._local_analysis(metrics, trades, regime_stats)
 
         # With LLM: call API
-        prompt = self._build_analysis_prompt(metrics, trades, regime_stats)
+        web_context = self._gather_web_context(self._symbols_from(metrics, trades))
+        prompt = self._build_analysis_prompt(metrics, trades, regime_stats, web_context)
         try:
             can_call, reason = self.budget.can_call()
             if not can_call:
@@ -152,7 +173,8 @@ class LLMResearchAgent:
         if not self._enabled:
             return self._default_proposal(context)
 
-        prompt = self._build_proposal_prompt(context)
+        web_context = self._gather_web_context(self._symbols_from_context(context))
+        prompt = self._build_proposal_prompt(context, web_context)
         try:
             can_call, reason = self.budget.can_call()
             if not can_call:
@@ -193,19 +215,39 @@ class LLMResearchAgent:
         except Exception:
             return self._local_failure_analysis(failed_trades)
 
-    def _build_analysis_prompt(self, metrics: dict, trades: list[dict], regime_stats: dict | None = None) -> str:
+    def _build_analysis_prompt(
+        self,
+        metrics: dict,
+        trades: list[dict],
+        regime_stats: dict | None = None,
+        web_context: dict | None = None,
+    ) -> str:
         return json.dumps({
             "task": "analyze_trading_performance",
             "metrics": {k: v for k, v in metrics.items() if isinstance(v, (int, float, str, bool))},
             "trade_count": len(trades),
             "regime_stats": regime_stats or {},
-            "instructions": "Analyze the performance. Identify strengths, weaknesses, and suggest one concrete improvement.",
+            "web_search_results": (web_context or {}).get("web_search_results", []),
+            "tools_available": (
+                "You have access to web search (Brave/Tavily) and URL scraping (Firecrawl). "
+                "If you need current information to analyze this performance, request it."
+            ),
+            "instructions": (
+                "Analyze the performance. Identify strengths, weaknesses, and suggest one "
+                "concrete improvement. Use the web search results only if relevant to the "
+                "analysis; ignore them if not."
+            ),
         })
 
-    def _build_proposal_prompt(self, context: dict) -> str:
+    def _build_proposal_prompt(self, context: dict, web_context: dict | None = None) -> str:
         return json.dumps({
             "task": "propose_experiment",
             "context": context,
+            "web_search_results": (web_context or {}).get("web_search_results", []),
+            "tools_available": (
+                "You have access to web search (Brave/Tavily) and URL scraping (Firecrawl). "
+                "If you need current information to analyze this performance, request it."
+            ),
             "format": "Return JSON with keys: hypothesis, reasoning_summary, proposed_change, metrics_to_evaluate, expected_failure_modes, priority",
         })
 
@@ -216,6 +258,94 @@ class LLMResearchAgent:
             "sample_trades": failed_trades[:10],
             "instructions": "Identify patterns in losing trades. Are there common entry conditions, times, or regime types?",
         })
+
+    @staticmethod
+    def _symbols_from(metrics: dict, trades: list[dict]) -> list[str]:
+        """Collect symbol identifiers from metrics/trades for web research."""
+        symbols: set[str] = set()
+        m_symbol = metrics.get("symbol")
+        if isinstance(m_symbol, str) and m_symbol.strip():
+            symbols.add(m_symbol.strip().upper())
+        elif isinstance(m_symbol, (list, tuple)):
+            symbols.update(s.strip().upper() for s in m_symbol if isinstance(s, str) and s.strip())
+        for trade in trades:
+            symbol = trade.get("symbol")
+            if isinstance(symbol, str) and symbol.strip():
+                symbols.add(symbol.strip().upper())
+        return sorted(symbols)
+
+    @staticmethod
+    def _symbols_from_context(context: dict) -> list[str]:
+        """Collect symbol identifiers from a proposal context dict."""
+        symbols: set[str] = set()
+        for key in ("symbols", "symbol"):
+            value = context.get(key)
+            if isinstance(value, str) and value.strip():
+                symbols.add(value.strip().upper())
+            elif isinstance(value, (list, tuple)):
+                symbols.update(s.strip().upper() for s in value if isinstance(s, str) and s.strip())
+        return sorted(symbols)
+
+    def _gather_web_context(self, symbols: list[str], max_results: int = 3) -> dict:
+        """Run budgeted, cached web searches for symbols; advisory only.
+
+        Returns a dict with ``web_search_results`` for embedding in an LLM
+        prompt. Never raises; failures yield partial or empty context.
+        """
+        if not self.search_tools or not symbols:
+            return {"web_search_results": []}
+        gathered = []
+        for symbol in symbols[:3]:
+            query = f"{symbol} stock news today"
+            results = self._cached_search(query, max_results)
+            if results:
+                gathered.append({"symbol": symbol, "query": query, "results": results})
+        return {"web_search_results": gathered}
+
+    def _cached_search(self, query: str, max_results: int = 3) -> list[dict]:
+        """Search Brave then Tavily, cache-first, budget-gated.
+
+        Returns the first non-empty result set; ``[]`` if none of the tools
+        produced results or the budget blocked the calls.
+        """
+        if self.search_cache is not None:
+            for tool_name in ("brave", "tavily"):
+                try:
+                    cached = self.search_cache.get(tool_name, query)
+                except Exception as e:
+                    logger.warning("cache read failed for %s/%r: %s", tool_name, query, e)
+                    continue
+                if cached is not None:
+                    try:
+                        return json.loads(cached)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+
+        for tool_name, call in (
+            ("brave", lambda t, q: t.search(q, count=max_results)),
+            ("tavily", lambda t, q: t.search(q, max_results=max_results)),
+        ):
+            tool = self.search_tools.get(tool_name)
+            if tool is None:
+                continue
+            can, reason = self.search_budget.can_call(tool_name)
+            if not can:
+                logger.info("%s search skipped: %s", tool_name.capitalize(), reason)
+                continue
+            try:
+                results = call(tool, query)
+            except Exception as e:
+                logger.warning("%s search error for %r: %s", tool_name, query, e)
+                results = []
+            self.search_budget.record_call(tool_name)
+            if results and self.search_cache is not None:
+                try:
+                    self.search_cache.set(tool_name, query, json.dumps(results))
+                except Exception as e:
+                    logger.warning("cache write failed for %s/%r: %s", tool_name, query, e)
+            if results:
+                return results
+        return []
 
     def _local_analysis(self, metrics: dict, trades: list[dict], regime_stats: dict | None = None) -> str:
         """Local analysis without LLM."""

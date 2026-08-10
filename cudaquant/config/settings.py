@@ -49,6 +49,18 @@ class Settings(BaseSettings):
     TAVILY_API_KEY: str | None = None
     FIRECRAWL_API_KEY: str | None = None
 
+    # ── Finance data providers (optional) ────────────────────────────────────
+    FMP_API_KEY: str | None = None
+    FINNHUB_API_KEY: str | None = None
+
+    # ── Alerting (optional) ─────────────────────────────────────────────────
+    TELEGRAM_BOT_TOKEN: str | None = None
+    TELEGRAM_CHAT_ID: str | None = None
+
+    # ── Alerts (optional — Telegram alerting skips silently if unset) ──────────
+    TELEGRAM_BOT_TOKEN: str | None = None
+    TELEGRAM_CHAT_ID: str | None = None
+
     # ── Server ────────────────────────────────────────────────────────────────
     HOST: str = "127.0.0.1"
     PORT: int = 8000

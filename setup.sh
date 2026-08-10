@@ -58,7 +58,12 @@ mkdir -p data
 # ── Copy .env if not exists ────────────────────────────────────────────────────
 if [ ! -f ".env" ]; then
     cp .env.example .env
-    echo "Created .env from .env.example — edit with your credentials."
+    # Auto-generate API_AUTH_TOKEN for LAN-exposed deployments
+    TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))" 2>/dev/null || openssl rand -hex 32 2>/dev/null || echo "change-me-to-a-random-secret")
+    sed -i.bak "s/^# API_AUTH_TOKEN=.*/API_AUTH_TOKEN=$TOKEN/" .env 2>/dev/null || \
+      sed -i '' "s/^# API_AUTH_TOKEN=.*/API_AUTH_TOKEN=$TOKEN/" .env
+    echo "Created .env from .env.example — API_AUTH_TOKEN auto-generated."
+    echo "  Token (save this): $TOKEN"
 fi
 
 # ── Verify ──────────────────────────────────────────────────────────────────────

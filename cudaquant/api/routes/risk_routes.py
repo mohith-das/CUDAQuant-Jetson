@@ -1,6 +1,9 @@
 """Risk & Execution API routes."""
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 
+from cudaquant.alerts.telegram import TelegramAlerter
 from cudaquant.api.auth import require_auth
 from cudaquant.config.settings import settings
 from cudaquant.data.schemas import Order, OrderSide, OrderType
@@ -33,7 +36,12 @@ def engage_kill_switch(payload: dict):
     confirm = payload.get("confirm", "")
     if confirm != "STOP":
         raise HTTPException(400, "Must include {'confirm': 'STOP'} to engage kill switch")
-    _order_service.engage_kill_switch(reason=payload.get("reason", "manual"))
+    reason = payload.get("reason", "manual")
+    _order_service.engage_kill_switch(reason=reason)
+    TelegramAlerter().send(
+        f"[CUDAQuant] Kill switch engaged — reason: {reason} — "
+        f"{datetime.now(timezone.utc).isoformat()}"
+    )
     return {"kill_switch_engaged": True}
 
 

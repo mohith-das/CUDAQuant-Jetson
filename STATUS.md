@@ -1,13 +1,38 @@
 # STATUS.md — Current Repository State
 
-- **Last updated:** 2026-08-10 (Correction Pass 3 committed; crypto support in working tree, uncommitted)
+- **Last updated:** 2026-08-10 (Telegram alerting wired in working tree; crypto + LLM tool/provider work also in flight)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** 9824782 (Correction Pass 3: ModelRegistry persistence, ExperimentEngine singleton, 4th gate wired)
-- **Working tree:** NOT clean — uncommitted crypto support (see "Crypto support — working tree" below).
-  The tree was observed being actively modified during the docs pass; treat its state as in-flight.
+- **Current commit:** 3ff2deb (Fix ModelRegistry persistence: add missing _load_all() call)
+- **Working tree:** NOT clean — multiple agents' uncommitted work in flight (crypto support, LLM tools/providers, Telegram alerting, fmp/finnhub providers). The tree was observed actively churning during the docs pass; treat its state as in-flight.
 - **Jetson verified at:** 0a44707 — e2e test script `scripts/e2e_test.sh` run on-device
-  (Correction Pass 3 + crypto work NOT yet synced to Jetson)
+  (everything after that commit is NOT yet synced to Jetson)
+
+## Telegram alerting — working tree ⏳ (UNCOMMITTED)
+- **`cudaquant/alerts/telegram.py`** — `TelegramAlerter`, a minimal Telegram bot client
+  over `httpx` (already a dependency). Reads `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`
+  from settings; **degrades gracefully**: if either is unset (the default) `send()` returns
+  `False` with no network call; non-200 responses and network exceptions also return `False`
+  (never raises). Message text is HTML-escaped before posting (`parse_mode=HTML`) so dynamic
+  content (reasons, errors, model ids) cannot break the request.
+- **Settings:** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` added to `Settings` (both default
+  `None`); `.env.example` documents both (commented, with BotFather/getUpdates instructions).
+- **Wired at three trigger points** — fire-and-forget calls appended at the end of the
+  existing path, no try/except wrapping of existing logic:
+  - Kill-switch trip → `api/routes/risk_routes.py::engage_kill_switch`
+  - Scheduler job exception → `scheduler/service.py::_run_job` except block
+  - Challenger ready for review → `ml/registry.py::promote_to_challenger` (success only)
+- **Tests:** `tests/unit/test_telegram_alerts.py` (7 tests) — graceful skip without
+  chat_id/token, correct outbound payload, HTML escaping, non-200 → False, network
+  exception → False. `tests/unit/test_config.py` gained telegram default/env tests and
+  both keys in the hermetic clean-env list (plus the previously-missing
+  BRAVE/TAVILY/FIRECRAWL keys).
+- **Repair of a pre-existing in-flight bug:** the uncommitted `get_shared_registry`
+  insertion in `ml/registry.py` had left `_load_all` indented inside the function (dead
+  code after `return`), so `ModelRegistry(db_path=...)` raised `AttributeError` and
+  `import cudaquant.api` failed. Restored `_load_all` as a class method (see
+  CHANGELOG_AGENT.md).
+- **Decision:** DECISIONS.md ADR-0017.
 
 ## Correction Pass 3 — committed 9824782 ✅
 - **ModelRegistry persistence fixed:** `ModelRegistry(db_path=...)` now receives
@@ -141,12 +166,13 @@ Correction Pass 3 and the working-tree crypto changes have **not** been synced t
 or re-verified on-device.
 
 ## Tests
-- **Committed HEAD (9824782), clean env:** **144 passed, 1 skipped** full suite
-  (130 unit + 14 integration + 1 GPU parity skip off-Jetson). This matches the commit
-  message's "130/130" (unit count) — full suite is 145 total.
-- **Current working tree (churned):** **149 passed, 1 failed, 1 skipped** — the failure is
-  `test_order_service_with_fractional_qty` (stale assertion vs the uncommitted float-qty
-  schema; see Crypto section). Not a committed-tree failure.
+- **Committed HEAD (3ff2deb):** **144 passed, 1 skipped** full suite at Correction Pass 3
+  (130 unit + 14 integration + 1 GPU parity skip off-Jetson). Not re-measured at HEAD after
+  the working-tree churn.
+- **Current working tree (churned, verified 2026-08-10 during the Telegram pass):**
+  **184 passed, 1 skipped** (GPU parity skip off-Jetson) — includes the Telegram alert
+  tests, the landed LLM tool-budget/provider tests, and the crypto float-qty work (the
+  formerly-failing `test_order_service_with_fractional_qty` now passes).
 - **On this Mac, `pytest` from the repo root fails at collection:** the local `.env`
   contains `FMP_API_KEY` and `FINNHUB_API_KEY`, which are not fields of the Settings model
   (pydantic `extra=forbidden`) — Settings() raises before tests run. The working tree adds
@@ -154,12 +180,16 @@ or re-verified on-device.
   remove those keys from `.env`.
 - **8/8 GPU parity tests pass** on Jetson (verified at 0a44707)
 - **8/8 order service safety tests pass**
-- Ruff: 0 errors at HEAD; **1 error in working tree** (F841 in the fractional-qty test)
+- Ruff: 0 errors on the files touched by the Telegram pass
 
 ## Known limitations
+- **Telegram alerting is configured nowhere yet** — `TELEGRAM_BOT_TOKEN` /
+  `TELEGRAM_CHAT_ID` are unset by default, so all alert call sites silently no-op
+  (documented behavior, ADR-0017). Wire a real bot/chat id to enable.
 - **Crypto support is uncommitted / in-flight** — `alpaca_crypto_provider.py`, float qty,
-  and GTC TIF live in the working tree only; the fractional-qty test fails and ruff shows
-  one error in that tree. Commit + re-verify before calling crypto done.
+  and GTC TIF live in the working tree only; the fractional-qty test has been updated to
+  assert float acceptance and passes in the current tree. Commit + re-verify before calling
+  crypto done.
 - **Search tool wrappers NOT built** — `BRAVE_SEARCH_API_KEY` / `TAVILY_API_KEY` /
   `FIRECRAWL_API_KEY` settings fields exist, but there is no Brave/Tavily/Firecrawl client
   code anywhere in the repo.

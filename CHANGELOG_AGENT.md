@@ -2,6 +2,38 @@
 
 > Terse, newest-first. One entry per meaningful handoff so any agent can pick up.
 
+## 2026-08-10 — Telegram alerting wired (worker-backend)
+- **New `cudaquant/alerts/telegram.py`:** `TelegramAlerter` — minimal Telegram bot client
+  over `httpx` (existing dependency). Reads `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` from
+  settings; **degrades gracefully**: unset credentials → `send()` returns `False` with no
+  network call; non-200 / network exception → `False` (never raises). Text is HTML-escaped
+  before posting (`parse_mode=HTML`).
+- **Settings:** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` added to `Settings` (default
+  `None`, `extra="ignore"` preserved); commented entries added to `.env.example`.
+- **Wired (fire-and-forget, appended at end of existing paths):** kill-switch trip in
+  `api/routes/risk_routes.py::engage_kill_switch`; scheduler job exception in
+  `scheduler/service.py::_run_job` except block; challenger ready for review in
+  `ml/registry.py::promote_to_challenger` (success only). Messages are factual with UTC
+  timestamps.
+- **Tests:** new `tests/unit/test_telegram_alerts.py` (7 tests: skip-without-credentials,
+  payload, HTML escaping, non-200, network error). `test_config.py` gained telegram
+  default/env tests + added both telegram keys (and the previously-missing
+  BRAVE/TAVILY/FIRECRAWL keys) to the hermetic clean-env list.
+- **Repaired pre-existing in-flight bug (root cause):** the uncommitted
+  `get_shared_registry` insertion in `ml/registry.py` left `_load_all` indented inside the
+  function (dead code after `return`), so `ModelRegistry(db_path=...)` raised
+  `AttributeError` and `import cudaquant.api` failed entirely. Restored `_load_all` as a
+  class method; verified `import cudaquant.api.routes.risk_routes` etc. succeed.
+- **Verified:** full suite in the churned working tree at verification time = **184 passed,
+  1 skipped** (GPU parity skip). Ruff clean on all touched files. Graceful-degradation
+  check: `TelegramAlerter().send("test")` → `False` (credentials unset).
+- **Docs updated:** STATUS.md (Telegram section, test counts, known limitations),
+  DECISIONS.md (ADR-0017), BLOCKERS.md (known limitation + credentials row).
+- **Not committed** — the working tree contains multiple agents' in-flight work (crypto,
+  LLM tools/providers, fmp/finnhub providers); architected decision needed on what to
+  commit. `scheduler/**` is not assigned to any worker in the ownership map (AGENTS.md) —
+  architect may want to assign it.
+
 ## 2026-08-10 — Correction Pass 3 committed + crypto support in flight (docs pass)
 - **Correction Pass 3 (committed `9824782`):** ModelRegistry persistence fixed —
   `db_path=settings.DUCKDB_PATH` at every call site (`app.py`, `model_routes.py`);
