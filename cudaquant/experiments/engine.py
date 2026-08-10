@@ -32,6 +32,7 @@ class ExperimentOrigin(str, Enum):
     EVOLUTIONARY = "evolutionary"
     HYPERPARAMETER = "hyperparameter"
     LLM = "llm"
+    LLM_FALLBACK = "llm_fallback"  # LLM unavailable — used local heuristic instead
     DRIFT = "drift"
 
 

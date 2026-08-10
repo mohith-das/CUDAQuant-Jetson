@@ -165,13 +165,15 @@ class LLMResearchAgent:
     def propose_experiment(
         self,
         context: dict,
-    ) -> ExperimentProposal:
-        """Propose a new experiment based on current state.
+    ) -> tuple[ExperimentProposal, bool]:
+        """Propose a new experiment. Returns (proposal, came_from_llm).
 
-        Works without LLM — returns a generic improvement proposal.
+        came_from_llm is True only when a real LLM call succeeded and produced
+        a valid ExperimentProposal. False means local fallback was used.
+        Callers should use this ground truth for origin tracking.
         """
         if not self._enabled:
-            return self._default_proposal(context)
+            return self._default_proposal(context), False
 
         web_context = self._gather_web_context(self._symbols_from_context(context))
         prompt = self._build_proposal_prompt(context, web_context)
@@ -179,29 +181,51 @@ class LLMResearchAgent:
             can_call, reason = self.budget.can_call()
             if not can_call:
                 logger.info("LLM proposal blocked: %s", reason)
-                return self._default_proposal(context)
+                return self._default_proposal(context), False
 
             response = self._provider.generate(prompt, max_tokens=500)
-            # Parse structured output
-            try:
-                # Try to extract JSON from response
-                json_start = response.find("{")
-                json_end = response.rfind("}") + 1
-                if json_start >= 0 and json_end > json_start:
-                    data = json.loads(response[json_start:json_end])
-                    return ExperimentProposal(**data)
-            except (json.JSONDecodeError, Exception):
-                pass
-
             self.budget.record_call(tokens=500, cost_usd=0.0025)
-            return ExperimentProposal(
-                hypothesis=response[:200],
-                reasoning_summary="LLM-generated proposal (parsing failed, using raw response)",
-                proposed_change="see hypothesis",
-            )
+
+            # Parse structured output with proper validation
+            proposal = self._parse_proposal(response)
+            if proposal is not None:
+                return proposal, True
+
+            # Parsing failed — fall through to default
+            logger.warning("LLM response could not be parsed into ExperimentProposal")
+            return self._default_proposal(context), False
+
         except Exception as e:
             logger.warning("LLM proposal failed: %s", e)
-            return self._default_proposal(context)
+            return self._default_proposal(context), False
+
+    def _parse_proposal(self, response: str) -> ExperimentProposal | None:
+        """Parse LLM response into a validated ExperimentProposal. Returns None on failure."""
+        import json as _json
+
+        # Try to extract JSON from response
+        json_start = response.find("{")
+        json_end = response.rfind("}")
+        if json_start < 0 or json_end <= json_start:
+            return None
+
+        try:
+            data = _json.loads(response[json_start:json_end + 1])
+        except _json.JSONDecodeError:
+            return None
+
+        if not isinstance(data, dict):
+            return None
+
+        # Require at minimum a non-empty hypothesis
+        if not data.get("hypothesis", "").strip():
+            return None
+
+        # Validate and create
+        try:
+            return ExperimentProposal(**data)
+        except Exception:
+            return None
 
     def diagnose_failures(self, failed_trades: list[dict]) -> str:
         """Analyze losing trades for patterns."""
@@ -424,3 +448,25 @@ class LLMResearchAgent:
             "- Transaction cost impact on smaller trades",
         ]
         return "\n".join(lines)
+
+
+# ── Shared singleton ─────────────────────────────────────────────────────────
+# Used by scheduler callbacks — same pattern as ExperimentEngine.get_shared_engine()
+# and ModelRegistry.get_shared_registry(). Prevents the fresh-instance-per-call
+# bug where SearchBudget/LLMBudget never accumulate across invocations.
+
+_shared_agent: LLMResearchAgent | None = None
+
+
+def get_shared_llm_agent() -> LLMResearchAgent:
+    """Return a shared LLMResearchAgent with persistent budget state."""
+    global _shared_agent
+    if _shared_agent is None:
+        from cudaquant.config.settings import settings
+        from cudaquant.llm.provider_factory import build_llm_provider
+        from cudaquant.llm.tool_cache import SearchCache
+
+        provider = build_llm_provider()
+        cache = SearchCache(db_path=settings.DUCKDB_PATH, ttl_seconds=3600)
+        _shared_agent = LLMResearchAgent(provider=provider, search_cache=cache)
+    return _shared_agent

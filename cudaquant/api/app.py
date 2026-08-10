@@ -116,8 +116,7 @@ def _setup_scheduler_callbacks(scheduler):
 
     from cudaquant.data.schemas import BarFrequency
     from cudaquant.data.synthetic import SyntheticDataGenerator
-    from cudaquant.llm.agent import LLMResearchAgent
-    from cudaquant.llm.provider_factory import build_llm_provider
+    from cudaquant.llm.agent import get_shared_llm_agent
     from cudaquant.ml.models import TSLogisticRegression, prepare_targets
     from cudaquant.ml.registry import ModelRecord, ModelStatus, get_shared_registry
 
@@ -167,17 +166,18 @@ def _setup_scheduler_callbacks(scheduler):
         return f"champions={len(champions)}, challengers={len(challengers)}"
 
     def llm_analyze_callback():
-        provider = build_llm_provider()
-        agent = LLMResearchAgent(provider=provider)
-        proposal = agent.propose_experiment({"champion": "none"})
+        agent = get_shared_llm_agent()
+        proposal, came_from_llm = agent.propose_experiment({"champion": "none"})
         from cudaquant.experiments.engine import ExperimentOrigin, get_shared_engine
         engine = get_shared_engine(settings.DUCKDB_PATH)
+        origin = ExperimentOrigin.LLM if came_from_llm else ExperimentOrigin.LLM_FALLBACK
         exp = engine.propose(
             hypothesis=proposal.hypothesis,
-            origin=ExperimentOrigin.LLM,
+            origin=origin,
             notes=proposal.reasoning_summary,
         )
-        return f"LLM proposed experiment {exp.experiment_id}: {proposal.hypothesis[:80]}"
+        budget_status = agent.budget.get_status()
+        return f"LLM proposed experiment {exp.experiment_id} (origin={origin.value}, budget_calls={budget_status['daily_calls']}): {proposal.hypothesis[:80]}"
 
     scheduler.set_callback("ingest", ingest_callback)
     scheduler.set_callback("retrain", retrain_callback)

@@ -355,8 +355,9 @@ def test_propose_experiment_includes_web_context():
     stub = StubSearchTool([{"title": "NVDA", "url": "u", "description": "d"}])
     agent = LLMResearchAgent(provider=provider, search_tools={"brave": stub})
 
-    proposal = agent.propose_experiment({"symbols": ["nvda"]})
+    proposal, came_from_llm = agent.propose_experiment({"symbols": ["nvda"]})
 
+    assert came_from_llm is True
     prompt = json.loads(provider.prompts[0])
     assert "tools_available" in prompt
     assert prompt["web_search_results"][0]["query"] == "NVDA stock news today"
