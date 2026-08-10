@@ -310,9 +310,15 @@ class ExperimentEngine:
 
     def _init_db(self) -> None:
         """Create experiments table if it doesn't exist."""
+        import os
+
+        import duckdb
+
+        from cudaquant.config.settings import settings
         try:
-            from cudaquant.storage.db import get_connection
-            con = get_connection()
+            db_path = self._db_path or settings.DUCKDB_PATH
+            os.makedirs(os.path.dirname(str(db_path)), exist_ok=True)
+            con = duckdb.connect(str(db_path))
             con.execute("""
                 CREATE TABLE IF NOT EXISTS experiments (
                     experiment_id VARCHAR PRIMARY KEY,
@@ -348,9 +354,10 @@ class ExperimentEngine:
         if not self._db_path:
             return
         import json
+
+        import duckdb
         try:
-            from cudaquant.storage.db import get_connection
-            con = get_connection()
+            con = duckdb.connect(str(self._db_path))
             con.execute("""
                 INSERT OR REPLACE INTO experiments VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
@@ -378,9 +385,10 @@ class ExperimentEngine:
         if not self._db_path:
             return
         import json
+
+        import duckdb
         try:
-            from cudaquant.storage.db import get_connection
-            con = get_connection()
+            con = duckdb.connect(str(self._db_path))
             rows = con.execute("SELECT * FROM experiments").fetchall()
             con.close()
             for row in rows:
