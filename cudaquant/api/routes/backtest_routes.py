@@ -11,7 +11,6 @@ from cudaquant.backtest.engine import DeterministicBacktester
 from cudaquant.strategies.implementations import (
     IntradayMomentum,
     MeanReversion,
-    STRATEGY_REGISTRY as _strats,
 )
 
 router = APIRouter(prefix="/api/backtests", tags=["backtests"], dependencies=[Depends(require_auth)])
