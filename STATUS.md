@@ -1,44 +1,72 @@
 # STATUS.md — Current Repository State
 
-- **Last updated:** 2026-08-09 (architect session, M2 complete → starting M3)
+- **Last updated:** 2026-08-09 (architect session end — M0/M1/M2/M3 complete, M4 started)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** 7e194ec (M2 GPU acceleration) — run `git log -1 --oneline` for latest
-- **Current milestone:** Milestone 2 COMPLETE. Next: Milestone 3 (data providers + ML + strategies).
+- **Current commit:** 1fc4ad9 (M3 scripts + LLM agent) — run `git log -1 --oneline` for latest
+- **Current milestone:** Milestone 3 COMPLETE. Milestone 4 (UI, docs, Alpaca, CI) in progress.
 
-## Completed work
-- **M0:** Harness bootstrap, AGENTS.md, coordination docs, GitHub repo
-- **M1:** Full project scaffold — config, FastAPI, data schemas, synthetic provider, deterministic backtester, risk governor, kill switch. 95 unit tests passing.
-- **M2:** GPU acceleration — 22 CPU feature functions, 3 CUDA kernel files (.cu), CMake build system, ctypes bindings with graceful CPU fallback. Compiled and benchmarked on Jetson Orin. Honest benchmarks in docs/CUDA_BENCHMARKS.md.
+## Completed work summary
 
-## Work in progress
-- Planning Milestone 3 (strategies, walk-forward validation, ML, regimes, experiments, LLM).
+### M0 — Harness ✅
+OpenCode multi-agent harness (architect + 8 workers), coordination docs, GitHub repo.
 
-## Next actions (Milestone 3)
-1. Implement baseline strategies (intraday momentum, mean reversion, pairs/relative value)
-2. Walk-forward validation framework + strict time-series leakage guards
-3. ML models (logistic regression, random forest) + model registry
-4. Regime detection (volatility, trend, volume, correlation-based)
-5. Experiment engine + champion/challenger management
-6. LLM research agent provider (stub, works without API key)
+### M1 — Project Scaffold ✅
+- Python package with pyproject.toml, all dependencies
+- Config system (pydantic-settings, 26 fields, live-trading gate)
+- FastAPI app with `/health` and `/readiness` endpoints
+- Pydantic v2 data schemas (Bar, Order, Fill, Position, Account)
+- SyntheticMarketDataGenerator with 7 market scenarios
+- Provider ABCs + SyntheticMarketDataProvider
+- DeterministicBacktester (walk-forward, costs/slippage/spread, 13 metrics, no-look-ahead)
+- RiskGovernor (fail-closed) + file-based KillSwitch
+- Strategy ABC + BuyAndHold baseline
+- 95/95 unit tests passing
+
+### M2 — GPU Acceleration ✅
+- 22 CPU feature functions (returns, rolling stats, RSI, ATR, VWAP, momentum, beta, correlation, etc.)
+- 3 CUDA kernel files (.cu): rolling stats, returns, z-score
+- CMake build system targeting SM 8.7 (Orin)
+- ctypes bindings with graceful CPU fallback (verified on macOS + Jetson)
+- Compiled and benchmarked on Jetson Orin (JetPack 7.2, CUDA 13.2)
+- Honest benchmarks: rolling_zscore 3.4x GPU speedup at n=100k
+
+### M3 — Strategies, ML, Experiments ✅
+- 3 baseline strategies: IntradayMomentum, MeanReversion, PairsRelativeValue
+- Walk-forward validation: chronological splits, purge/embargo, leakage detection (lookahead, target leakage, future normalization)
+- ML models: TSLogisticRegression, TSRandomForest with chronological training
+- Model registry: candidate → challenger → champion → retired lifecycle, DuckDB persistence
+- Regime detection: 4 regimes (trending/ranging × high/low vol) with performance attribution
+- Experiment engine: lifecycle tracking, grid/random/evolutionary search, budget limits
+- LLM research agent: advisory-only, structured proposals, works without API key, local fallback
+- Setup/start/stop/deploy scripts (setup.sh, start.sh, stop.sh, scripts/deploy_jetson.sh)
+
+## Work remaining (Milestone 4)
+- [ ] UI dashboards (worker-ui)
+- [ ] Alpaca provider integration (needs API keys; synthetic works fully)
+- [ ] Comprehensive docs (README, architecture, deployment)
+- [ ] Integration tests + CI
+- [ ] Codex audit prep
 
 ## Tests
-- **95/95 unit tests passing** on macOS (CPU only)
+- **95/95 unit tests passing** on macOS (CPU)
 - GPU tests pass on Jetson with documented float32 precision limits
-- Benchmark results: rolling_zscore 3.4x GPU speedup at n=100k
+- End-to-end smoke test: strategies + backtester + walk-forward + regime detection verified
 
 ## Jetson deployment state
-- **SSH accessible** at matt@matt.local (alias jetson-orin)
+- **SSH:** matt@matt.local (alias jetson-orin)
 - **Code synced** to ~/cudaquant/
-- **CUDA compiled** — libcudaquant_kernels.so built and validated
-- **Python deps** installed in .venv/
-- **GPU validation** passed (mean, min, max, sum, returns within 1e-4; std/var within 5e-2)
+- **CUDA compiled:** libcudaquant_kernels.so (141 KB)
+- **Python deps:** installed in .venv/ (fastapi, pandas, numpy, scikit-learn, duckdb, pyarrow, etc.)
+- **GPU validation:** passed (mean/min/max/sum/returns < 1e-4; std/var < 5e-2)
+- **Benchmarks:** recorded in docs/CUDA_BENCHMARKS.md (rolling_zscore 3.4x speedup)
 
-## Known failures / limitations
-- Float32 precision limits for GPU variance/std computation (documented)
-- GPU overhead dominates for n < ~50k (crossover point documented)
-- No Alpaca API keys configured (Milestone 3+)
-- No LLM API key configured (optional, everything works without)
+## Known limitations
+- Float32 GPU precision limits for variance/std (documented)
+- GPU overhead dominates for n < ~50k
+- No Alpaca API keys (synthetic mode works fully)
+- No LLM API key (LLM agent works with local fallback)
+- UI not yet built (M4)
 
 ## Active Work Claims
-_(none — between milestones)_
+_(none)_
