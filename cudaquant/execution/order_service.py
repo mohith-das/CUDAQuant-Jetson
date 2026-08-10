@@ -15,7 +15,7 @@ import logging
 from typing import Any
 
 from cudaquant.config.settings import settings
-from cudaquant.data.schemas import Order, OrderSide
+from cudaquant.data.schemas import Order
 from cudaquant.providers.alpaca_broker import AlpacaBroker
 from cudaquant.risk.governor import RiskGovernor
 from cudaquant.risk.kill_switch import KillSwitch
@@ -67,13 +67,24 @@ class OrderService:
             return False, "paper mode but ENABLE_LIVE_TRADING=True — inconsistent config", None
 
         # ── Gate 2: Risk Governor ────────────────────────────────────────
-        # Build payload in the dict shape RiskGovernor expects.
-        # For market orders, use the account's per-share value as a rough
-        # notional estimate. The API layer should provide the real quote.
-        ref_price = order.limit_price if order.limit_price else max(
-            account.portfolio_value / max(sum(abs(p.qty) for p in positions), 1),
-            10.0,  # floor: assume at least $10/share
-        )
+        # Fetch account state first — needed for both ref_price and risk check
+        try:
+            account = self._broker.get_account()
+            positions = self._broker.get_positions()
+        except Exception as e:
+            logger.error("Failed to get account state for risk check: %s", e)
+            return False, f"risk check failed: cannot get account state ({e})", None
+
+        # Build reference price for notional calculation.
+        # For market orders (no limit_price), estimate from account state.
+        if order.limit_price:
+            ref_price = order.limit_price
+        else:
+            total_pos = sum(abs(p.qty) for p in positions)
+            ref_price = max(
+                account.portfolio_value / max(total_pos, 1) if total_pos > 0 else 100.0,
+                10.0,  # floor: assume at least $10/share
+            )
         order_payload = {
             "symbol": order.symbol,
             "side": order.side.value,

@@ -7,7 +7,7 @@ Environment: ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_DATA_FEED
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 from alpaca.data.historical import StockHistoricalDataClient
@@ -109,7 +109,7 @@ class AlpacaMarketDataProvider(MarketDataProvider):
 
     def get_latest_bar(self, symbol: str, frequency: BarFrequency) -> Bar:
         """Get the most recent bar for a symbol."""
-        end = datetime.now(timezone.utc) if hasattr(datetime, 'timezone') else datetime.utcnow()
+        end = datetime.now(timezone.utc)
         start = end - timedelta(days=5)
         df = self.get_bars([symbol], start, end, frequency)
         if df.empty:

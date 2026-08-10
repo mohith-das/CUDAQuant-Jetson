@@ -16,8 +16,8 @@ def list_models(status: str | None = None):
         try:
             st = ModelStatus(status)
             models = _registry.list_by_status(st)
-        except ValueError:
-            raise HTTPException(400, f"Invalid status: {status}")
+        except ValueError as err:
+            raise HTTPException(400, f"Invalid status: {status}") from err
     else:
         models = _registry.list_all()
     return [{"model_id": m.model_id, "family": m.family, "version": m.version,

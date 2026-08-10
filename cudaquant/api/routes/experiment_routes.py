@@ -1,13 +1,13 @@
 """Experiment API routes — full CRUD over persistent ExperimentEngine."""
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException
 
 from cudaquant.api.auth import require_auth
+from cudaquant.config.settings import settings
 from cudaquant.experiments.engine import (
     ExperimentEngine,
     ExperimentOrigin,
     ExperimentStatus,
 )
-from cudaquant.config.settings import settings
 
 router = APIRouter(prefix="/api/experiments", tags=["experiments"], dependencies=[Depends(require_auth)])
 
@@ -45,8 +45,8 @@ def list_experiments(status: str | None = None, limit: int = 50):
         try:
             st = ExperimentStatus(status)
             exps = _engine.list_by_status(st)
-        except ValueError:
-            raise HTTPException(400, f"Invalid status: {status}")
+        except ValueError as err:
+            raise HTTPException(400, f"Invalid status: {status}") from err
     else:
         exps = _engine.list_all()
     return [{"experiment_id": e.experiment_id, "hypothesis": e.hypothesis,

@@ -1,6 +1,5 @@
 """WebSocket event stream — single endpoint broadcasting typed events."""
 import asyncio
-import json
 import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect

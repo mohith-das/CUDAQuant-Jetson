@@ -1,13 +1,12 @@
 """Data API routes — synthetic generation, symbol listing, bar fetching."""
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 
 from cudaquant.api.auth import require_auth
 from cudaquant.data.schemas import BarFrequency
 from cudaquant.data.synthetic import SyntheticDataGenerator
 from cudaquant.providers.alpaca_provider import AlpacaMarketDataProvider
-from cudaquant.config.settings import settings
 
 router = APIRouter(prefix="/api/data", tags=["data"], dependencies=[Depends(require_auth)])
 

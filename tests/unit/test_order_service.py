@@ -4,7 +4,6 @@ ALL Alpaca HTTP calls are mocked — no real API keys needed.
 These tests prove that each gate independently blocks order submission.
 """
 
-import os
 from unittest import mock
 
 import pytest
@@ -189,6 +188,29 @@ class TestOrderServiceGates:
         # Broker should NEVER be called when config is invalid
         mock_broker.submit_order.assert_not_called()
         mock_broker.get_account.assert_not_called()
+
+    def test_market_order_default_path_runs_all_gates(
+        self, mock_broker, permissive_governor, monkeypatch,
+    ):
+        """A MARKET order with no limit_price (the API default path) runs all 3 gates.
+
+        This is the regression test for Part 1 bug #1: the old code crashed
+        with NameError because ref_price referenced unassigned variables.
+        """
+        monkeypatch.setattr("cudaquant.execution.order_service.settings",
+                            _make_settings(TRADING_MODE="paper", ENABLE_LIVE_TRADING=False))
+
+        ks = KillSwitch("/tmp/test_market_order_ks")
+        ks.disengage()
+
+        order = Order(symbol="AAPL", side=OrderSide.BUY, order_type=OrderType.MARKET, qty=1)
+
+        service = OrderService(broker=mock_broker, governor=permissive_governor, kill_switch=ks)
+        ok, msg, order_id = service.submit_order(order)
+        assert ok, f"Market order should pass all gates, got: {msg}"
+        assert order_id is not None
+        # Prove broker.submit_order was actually called — all gates passed
+        mock_broker.submit_order.assert_called_once()
 
 
 def _make_settings(**overrides):

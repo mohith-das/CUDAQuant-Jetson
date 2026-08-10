@@ -52,7 +52,7 @@ def get_account():
         return {"cash": acct.cash, "portfolio_value": acct.portfolio_value,
                 "buying_power": acct.buying_power}
     except Exception as e:
-        raise HTTPException(503, f"Broker unavailable: {e}")
+        raise HTTPException(503, f"Broker unavailable: {e}") from e
 
 
 @exec_router.get("/positions")
@@ -79,7 +79,7 @@ def submit_order(payload: dict):
             limit_price=payload.get("limit_price"),
         )
     except (KeyError, ValueError) as e:
-        raise HTTPException(400, f"Invalid order: {e}")
+        raise HTTPException(400, f"Invalid order: {e}") from e
 
     ok, msg, order_id = _order_service.submit_order(order)
     if not ok:

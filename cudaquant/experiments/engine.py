@@ -309,7 +309,6 @@ class ExperimentEngine:
 
     def _init_db(self) -> None:
         """Create experiments table if it doesn't exist."""
-        import json
         try:
             from cudaquant.storage.db import get_connection
             con = get_connection()

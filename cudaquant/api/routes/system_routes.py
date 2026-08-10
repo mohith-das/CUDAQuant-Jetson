@@ -1,15 +1,15 @@
 """System & regime API routes."""
 import time
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 
 from cudaquant.api.auth import require_auth
 from cudaquant.config.settings import settings
-from cudaquant.features.dispatch import get_stats
-from cudaquant.regimes.detector import RegimeDetector
 from cudaquant.data.schemas import BarFrequency
 from cudaquant.data.synthetic import SyntheticDataGenerator
-from datetime import datetime, timezone, timedelta
+from cudaquant.features.dispatch import get_stats
+from cudaquant.regimes.detector import RegimeDetector
 
 system_router = APIRouter(prefix="/api/system", tags=["system"], dependencies=[Depends(require_auth)])
 regime_router = APIRouter(prefix="/api/regimes", tags=["regimes"], dependencies=[Depends(require_auth)])

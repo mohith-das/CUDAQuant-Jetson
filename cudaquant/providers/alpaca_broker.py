@@ -8,13 +8,11 @@ Environment: ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_PAPER
 """
 
 import logging
-from datetime import datetime, timezone
 
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide as AlpacaSide
-from alpaca.trading.enums import OrderType as AlpacaType
 from alpaca.trading.enums import TimeInForce
-from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
+from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest
 
 from cudaquant.config.settings import settings
 from cudaquant.data.schemas import Account, Order, OrderSide, OrderType, Position
@@ -131,7 +129,9 @@ class AlpacaBroker(BrokerAdapter):
     def list_orders(self, status: str = "all", limit: int = 50) -> list[dict]:
         if self._client is None:
             return []
-        orders = self._client.get_orders(status=status, limit=limit)
+        from alpaca.trading.requests import GetOrdersRequest
+        filter_req = GetOrdersRequest(status=status, limit=limit)
+        orders = self._client.get_orders(filter=filter_req)
         return [
             {
                 "id": str(o.id),

@@ -18,5 +18,5 @@
 |---|---|---|
 | DeepSeek API | ✅ authenticated in OpenCode | architect + workers |
 | GitHub (`gh`, `mohith-das`) | ✅ authenticated, `repo` scope | push to PRIVATE remote |
-| Jetson `jetson-orin` SSH | ✅ alias present (not yet contacted) | GPU build/test/deploy |
-| Alpaca API keys | ⚠️ not configured (not yet needed) | live/paper market data (Milestone 3) |
+| Jetson `jetson-orin` SSH | ✅ alias present, verified working | GPU build/test/deploy |
+| Alpaca API keys | ✅ configured in .env on both machines | live/paper market data + broker |

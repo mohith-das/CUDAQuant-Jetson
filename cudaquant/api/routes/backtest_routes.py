@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 
 from cudaquant.api.auth import require_auth
+from cudaquant.backtest.engine import DeterministicBacktester
 from cudaquant.data.schemas import BarFrequency
 from cudaquant.data.synthetic import SyntheticDataGenerator
-from cudaquant.backtest.engine import DeterministicBacktester
 from cudaquant.strategies.implementations import (
     IntradayMomentum,
     MeanReversion,

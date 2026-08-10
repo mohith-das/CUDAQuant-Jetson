@@ -9,14 +9,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from cudaquant.api.routes.health import health_router, readiness_router
-from cudaquant.api.routes.data_routes import router as data_router
-from cudaquant.api.routes.strategy_routes import router as strategy_router
 from cudaquant.api.routes.backtest_routes import router as backtest_router
+from cudaquant.api.routes.data_routes import router as data_router
 from cudaquant.api.routes.experiment_routes import router as experiment_router
+from cudaquant.api.routes.health import health_router, readiness_router
 from cudaquant.api.routes.model_routes import router as model_router
-from cudaquant.api.routes.risk_routes import risk_router, exec_router
-from cudaquant.api.routes.system_routes import system_router, regime_router
+from cudaquant.api.routes.risk_routes import exec_router, risk_router
+from cudaquant.api.routes.strategy_routes import router as strategy_router
+from cudaquant.api.routes.system_routes import regime_router, system_router
 from cudaquant.api.routes.ws_routes import ws_router
 from cudaquant.config.settings import settings
 

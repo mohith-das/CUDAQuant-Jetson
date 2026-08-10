@@ -14,7 +14,7 @@ _bearer = HTTPBearer(auto_error=False)
 
 async def require_auth(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),  # noqa: B008
 ) -> None:
     """Validate Bearer token against API_AUTH_TOKEN.
 
