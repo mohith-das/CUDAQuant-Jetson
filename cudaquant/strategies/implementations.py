@@ -58,9 +58,8 @@ class IntradayMomentum(Strategy):
             elif position == 1:
                 if close[i] < exit_low[i - 1]:
                     position = 0
-            elif position == -1:
-                if close[i] > exit_high[i - 1]:
-                    position = 0
+            elif position == -1 and close[i] > exit_high[i - 1]:
+                position = 0
 
             signals[i] = position
 
@@ -123,9 +122,8 @@ class MeanReversion(Strategy):
             elif position == 1:
                 if zscore[i] > -self.exit_threshold:
                     position = 0  # reverted
-            elif position == -1:
-                if zscore[i] < self.exit_threshold:
-                    position = 0  # reverted
+            elif position == -1 and zscore[i] < self.exit_threshold:
+                position = 0  # reverted
 
             signals[i] = position
 
@@ -219,9 +217,8 @@ class PairsRelativeValue(Strategy):
             elif position == 1:
                 if zscore[i] > -self.exit_threshold:
                     position = 0
-            elif position == -1:
-                if zscore[i] < self.exit_threshold:
-                    position = 0
+            elif position == -1 and zscore[i] < self.exit_threshold:
+                position = 0
 
             signals[data_idx] = position
 

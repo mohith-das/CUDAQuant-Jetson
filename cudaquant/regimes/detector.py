@@ -13,12 +13,10 @@ import pandas as pd
 
 from cudaquant.features.engine import (
     realized_volatility,
+    relative_volume,
     returns,
-    rolling_beta,
-    rolling_correlation,
     rolling_mean,
     rolling_std,
-    relative_volume,
 )
 
 
@@ -102,12 +100,6 @@ class RegimeDetector:
         trend_mean = rolling_mean(rets, self.trend_window)
         trend_std = rolling_std(rets, self.trend_window)
         trend_strength = np.abs(trend_mean) / np.maximum(trend_std, 1e-10)
-
-        # Volume intensity
-        vol = data.get("volume", pd.Series(np.ones(n)))
-        if isinstance(vol, pd.Series):
-            vol = vol.values
-        rel_vol = relative_volume(vol.astype(np.float64), self.vol_window)
 
         # Classify each bar
         regimes = []
@@ -216,7 +208,7 @@ class RegimeDetector:
                 regime_stats[key]["losses"] += 1
 
         # Compute win rates
-        for key, stats in regime_stats.items():
+        for stats in regime_stats.values():
             total = stats["wins"] + stats["losses"]
             stats["win_rate"] = stats["wins"] / total if total > 0 else 0.0
             if "trade_count" in stats:

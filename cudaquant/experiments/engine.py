@@ -193,7 +193,7 @@ class ExperimentEngine:
         experiment_ids = []
 
         for combo in itertools.product(*values):
-            params = {**base_params, **dict(zip(keys, combo))}
+            params = {**base_params, **dict(zip(keys, combo, strict=True))}
             hypothesis = hypothesis_template.format(**params)
             exp = self.propose(
                 hypothesis=hypothesis,

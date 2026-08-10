@@ -1,6 +1,5 @@
 """Data quality checks for market data."""
 
-from datetime import datetime
 
 import pandas as pd
 
@@ -59,11 +58,11 @@ def check_ohlc_validity(df: pd.DataFrame) -> list[dict]:
     """
     issues: list[dict] = []
     for _, row in df.iterrows():
-        o, h, l, c = row["open"], row["high"], row["low"], row["close"]
+        o, h, low, c = row["open"], row["high"], row["low"], row["close"]
         problems = []
         if h < max(o, c):
             problems.append("high < max(open, close)")
-        if l > min(o, c):
+        if low > min(o, c):
             problems.append("low > min(open, close)")
         if problems:
             issues.append({

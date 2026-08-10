@@ -4,9 +4,9 @@ CRITICAL: Never random-split time series. All validation uses chronological spli
 purge/embargo for overlapping labels, and untouched holdout periods.
 """
 
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -119,8 +119,11 @@ class WalkForwardValidator:
             strategy = strategy_factory()
             backtester = backtester_factory()
 
-            # Train (if the strategy supports training — most baseline strategies don't)
-            train_data = data[data["timestamp"].isin(train_ts)]
+            # Train the strategy on the in-sample fold if it supports it. Baseline
+            # strategies have no `train` method; ML-backed strategies may add one.
+            if hasattr(strategy, "train"):
+                train_data = data[data["timestamp"].isin(train_ts)]
+                strategy.train(train_data)
 
             # Backtest on test period
             test_data = data[data["timestamp"].isin(test_ts)]

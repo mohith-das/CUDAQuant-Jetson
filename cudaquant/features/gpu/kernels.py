@@ -10,21 +10,33 @@ import logging
 
 import numpy as np
 
+from cudaquant.features.engine import (
+    returns as _cpu_returns,
+)
+from cudaquant.features.engine import (
+    rolling_max as _cpu_rolling_max,
+)
+from cudaquant.features.engine import (
+    rolling_mean as _cpu_rolling_mean,
+)
+from cudaquant.features.engine import (
+    rolling_min as _cpu_rolling_min,
+)
+from cudaquant.features.engine import (
+    rolling_std as _cpu_rolling_std,
+)
+from cudaquant.features.engine import (
+    rolling_sum as _cpu_rolling_sum,
+)
+from cudaquant.features.engine import (
+    rolling_variance as _cpu_rolling_variance,
+)
+from cudaquant.features.engine import (
+    rolling_zscore as _cpu_rolling_zscore,
+)
 from cudaquant.features.gpu.bindings import _allocate_and_copy, _copy_back_and_free, _load_library
 
 logger = logging.getLogger(__name__)
-
-# ── Import CPU fallbacks ─────────────────────────────────────────────────────
-from cudaquant.features.engine import (  # noqa: E402
-    rolling_max as _cpu_rolling_max,
-    rolling_mean as _cpu_rolling_mean,
-    rolling_min as _cpu_rolling_min,
-    rolling_std as _cpu_rolling_std,
-    rolling_sum as _cpu_rolling_sum,
-    rolling_variance as _cpu_rolling_variance,
-    rolling_zscore as _cpu_rolling_zscore,
-    returns as _cpu_returns,
-)
 
 
 def _gpu_fallback(cpu_fn, *args, **kwargs):

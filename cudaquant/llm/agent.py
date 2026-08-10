@@ -15,8 +15,7 @@ It may NEVER:
 
 import json
 import logging
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -283,7 +282,7 @@ class LLMResearchAgent:
         avg_loss = total_loss / len(failed_trades) if failed_trades else 0
 
         lines = [
-            f"# Trade Failure Analysis\n",
+            "# Trade Failure Analysis\n",
             f"Failed trades: {len(failed_trades)}",
             f"Total loss: ${total_loss:,.2f}",
             f"Average loss: ${avg_loss:,.2f}",

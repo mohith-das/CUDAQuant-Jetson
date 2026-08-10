@@ -157,8 +157,9 @@ class ModelRegistry:
         if not self._db_path:
             return
         try:
-            import duckdb
             import json
+
+            import duckdb
             con = duckdb.connect(self._db_path)
             con.execute("""
                 INSERT OR REPLACE INTO model_registry VALUES (

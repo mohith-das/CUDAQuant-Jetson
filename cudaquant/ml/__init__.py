@@ -1,8 +1,8 @@
 """ML models, training, inference, model registry."""
 
 from cudaquant.ml.models import (
-    TSRandomForest,
     TSLogisticRegression,
+    TSRandomForest,
     evaluate_classifier,
     prepare_features,
     prepare_targets,

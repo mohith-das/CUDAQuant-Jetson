@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
 """GPU vs CPU benchmark for CUDAQuant features."""
-import numpy as np
 import time
-from cudaquant.features.gpu.kernels import (
-    gpu_rolling_mean, gpu_rolling_std, gpu_simple_returns, gpu_rolling_zscore,
+
+import numpy as np
+
+from cudaquant.features.engine import (
+    returns as cpu_returns,
 )
 from cudaquant.features.engine import (
-    rolling_mean as cpu_mean, rolling_std as cpu_std,
-    returns as cpu_returns, rolling_zscore as cpu_zscore,
+    rolling_mean as cpu_mean,
+)
+from cudaquant.features.engine import (
+    rolling_std as cpu_std,
+)
+from cudaquant.features.engine import (
+    rolling_zscore as cpu_zscore,
+)
+from cudaquant.features.gpu.kernels import (
+    gpu_rolling_mean,
+    gpu_rolling_std,
+    gpu_rolling_zscore,
+    gpu_simple_returns,
 )
 
 n_runs = 5

@@ -12,6 +12,7 @@ silently accepts dirty data fails loudly.
 
 import pandas as pd
 import pytest
+
 from cudaquant.data.quality import (
     check_duplicates,
     check_negative_prices,

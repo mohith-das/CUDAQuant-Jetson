@@ -6,7 +6,6 @@ Gracefully falls back to CPU if the library is unavailable.
 
 import ctypes
 import logging
-import os
 from pathlib import Path
 from typing import Any
 

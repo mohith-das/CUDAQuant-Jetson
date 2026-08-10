@@ -1,6 +1,6 @@
 """Synthetic market data generator with realistic OHLCV bar scenarios."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -169,18 +169,18 @@ class SyntheticDataGenerator:
     def validate_bar(bar: Bar | dict) -> list[str]:
         """Validate a single Bar (or dict) and return list of issues (empty if valid)."""
         if isinstance(bar, dict):
-            o, h, l, c = bar.get("open", 0), bar.get("high", 0), bar.get("low", 0), bar.get("close", 0)
+            o, h, low, c = bar.get("open", 0), bar.get("high", 0), bar.get("low", 0), bar.get("close", 0)
             v = bar.get("volume", 0)
         else:
-            o, h, l, c = bar.open, bar.high, bar.low, bar.close
+            o, h, low, c = bar.open, bar.high, bar.low, bar.close
             v = bar.volume
 
         issues: list[str] = []
-        if o < 0 or h < 0 or l < 0 or c < 0:
+        if o < 0 or h < 0 or low < 0 or c < 0:
             issues.append("Negative price in bar")
         if h < max(o, c):
             issues.append("High less than max(open, close)")
-        if l > min(o, c):
+        if low > min(o, c):
             issues.append("Low greater than min(open, close)")
         if v < 0:
             issues.append("Negative volume")
