@@ -52,6 +52,7 @@ class ModelRegistry:
         self._db_path = db_path
         if db_path:
             self._init_db()
+            self._load_all()
 
     def _init_db(self) -> None:
         """Initialize registry table if using persistent storage."""
@@ -178,5 +179,34 @@ class ModelRegistry:
                 record.promoted_at, record.retired_at, record.notes,
             ])
             con.close()
+        except (ImportError, Exception):
+            pass
+
+    def _load_all(self) -> None:
+        """Load all models from DuckDB."""
+        if not self._db_path:
+            return
+        import json
+        try:
+            import duckdb
+            con = duckdb.connect(self._db_path)
+            rows = con.execute("SELECT * FROM model_registry").fetchall()
+            con.close()
+            for row in rows:
+                record = ModelRecord(
+                    model_id=row[0], family=row[1] or "", version=row[2] or 1,
+                    git_commit=row[3] or "", training_start=row[4] or "",
+                    training_end=row[5] or "",
+                    feature_schema=json.loads(row[6]) if row[6] else [],
+                    hyperparameters=json.loads(row[7]) if row[7] else {},
+                    seed=row[8] or 42,
+                    metrics=json.loads(row[9]) if row[9] else {},
+                    calibration=json.loads(row[10]) if row[10] else {},
+                    artifact_path=row[11] or "", parent_id=row[12],
+                    status=ModelStatus(row[13]) if row[13] else ModelStatus.CANDIDATE,
+                    created_at=row[14] or "", promoted_at=row[15],
+                    retired_at=row[16], notes=row[17] or "",
+                )
+                self._models[record.model_id] = record
         except (ImportError, Exception):
             pass
