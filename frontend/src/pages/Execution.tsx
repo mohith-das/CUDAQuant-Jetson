@@ -3,10 +3,18 @@ import { apiFetch } from "../api";
 import { useState } from "react";
 
 export default function Execution() {
-  const { data: risk } = useQuery({ queryKey: ["risk"], queryFn: () => apiFetch<Record<string,unknown>>("/api/risk/"), refetchInterval: 5000 });
-  const { data: account } = useQuery({ queryKey: ["account"], queryFn: () => apiFetch<Record<string,unknown>>("/api/execution/account"), refetchInterval: 10000 });
-  const { data: positions } = useQuery({ queryKey: ["positions"], queryFn: () => apiFetch<Array<Record<string,unknown>>>("/api/execution/positions"), refetchInterval: 10000 });
-  const { data: orders } = useQuery({ queryKey: ["orders"], queryFn: () => apiFetch<Array<Record<string,unknown>>>("/api/execution/orders"), refetchInterval: 10000 });
+  const { data: risk, error: riskError } = useQuery({
+    queryKey: ["risk"], queryFn: () => apiFetch<Record<string,unknown>>("/api/risk/"), refetchInterval: 5000,
+  });
+  const { data: account, isLoading: acctLoading } = useQuery({
+    queryKey: ["account"], queryFn: () => apiFetch<Record<string,unknown>>("/api/execution/account"), refetchInterval: 10000,
+  });
+  const { data: positions, isLoading: posLoading } = useQuery({
+    queryKey: ["positions"], queryFn: () => apiFetch<Array<Record<string,unknown>>>("/api/execution/positions"), refetchInterval: 10000,
+  });
+  const { data: orders, isLoading: ordLoading } = useQuery({
+    queryKey: ["orders"], queryFn: () => apiFetch<Array<Record<string,unknown>>>("/api/execution/orders"), refetchInterval: 10000,
+  });
 
   const [symbol, setSymbol] = useState("AAPL");
   const [qty, setQty] = useState(1);
@@ -14,7 +22,14 @@ export default function Execution() {
   const [msg, setMsg] = useState("");
 
   const ks = risk as Record<string,unknown> | undefined;
-  const disabled = ks?.kill_switch_engaged || !ks?.broker_connected;
+  const killEngaged = ks?.kill_switch_engaged as boolean;
+  const brokerOk = ks?.broker_connected as boolean;
+  const disabled = killEngaged || !brokerOk;
+  const disableReason = killEngaged
+    ? "Kill switch is engaged"
+    : !brokerOk
+    ? "No broker connected"
+    : "";
 
   const submit = async () => {
     setMsg("");
@@ -29,51 +44,63 @@ export default function Execution() {
     }
   };
 
+  if (riskError) return <div className="error-box">Cannot connect to API — check auth token</div>;
+
   return (
     <div>
       <h2>Execution</h2>
       <div className="cards">
         <div className="card">
           <h3>Account</h3>
-          {account ? <><p>Cash: ${(account.cash as number)?.toFixed(2)}</p>
-            <p>Portfolio: ${(account.portfolio_value as number)?.toFixed(2)}</p>
-            <p>Buying Power: ${(account.buying_power as number)?.toFixed(2)}</p></> : <p>No broker configured</p>}
+          {acctLoading ? <div className="skeleton" style={{height:60}} /> :
+           account ? <>
+            <p className="mono">Cash: <span className="positive">${(account.cash as number)?.toFixed(2)}</span></p>
+            <p>Portfolio: <span className="mono">${(account.portfolio_value as number)?.toFixed(2)}</span></p>
+            <p>Buying Power: <span className="mono">${(account.buying_power as number)?.toFixed(2)}</span></p>
+          </> : <p className="fg-muted">No broker configured — set ALPACA_API_KEY</p>}
         </div>
         <div className="card">
           <h3>Positions</h3>
-          {positions && positions.length > 0 ? (
-            <table><thead><tr><th>Symbol</th><th>Qty</th><th>P&L</th></tr></thead>
+          {posLoading ? <div className="skeleton" style={{height:60}} /> :
+           positions && positions.length > 0 ? (
+            <table><thead><tr><th>Symbol</th><th className="mono">Qty</th><th className="mono">P&L</th></tr></thead>
               <tbody>{positions.map((p: Record<string,unknown>) => (
-                <tr key={p.symbol as string}><td>{p.symbol as string}</td><td>{p.qty as number}</td><td>{Number(p.unrealized_pnl).toFixed(2)}</td></tr>
+                <tr key={p.symbol as string}><td>{p.symbol as string}</td>
+                  <td className="mono">{String(p.qty)}</td>
+                  <td className={`mono ${Number(p.unrealized_pnl) >= 0 ? "positive" : "negative"}`}>
+                    ${Number(p.unrealized_pnl).toFixed(2)}</td></tr>
               ))}</tbody></table>
-          ) : <p>No open positions</p>}
+          ) : <p className="fg-muted">No open positions</p>}
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <h3>Order Ticket {disabled && "(Disabled — kill switch engaged or no broker)"}</h3>
-        {!disabled && (
-          <div>
+      <div className="card" style={{ marginTop: "var(--space-4)" }}>
+        <h3>Order Ticket {disabled ? <span className="pill pill-warning">DISABLED — {disableReason}</span> : null}</h3>
+        {!disabled ? (
+          <div style={{display:"flex", gap:"var(--space-2)", alignItems:"center", flexWrap:"wrap"}}>
             <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-              {["AAPL","MSFT","GOOGL","SPY"].map(s => <option key={s}>{s}</option>)}
+              {["AAPL","MSFT","GOOGL","SPY","BTC/USD"].map(s => <option key={s}>{s}</option>)}
             </select>
             <select value={side} onChange={(e) => setSide(e.target.value)}>
               <option value="buy">Buy</option><option value="sell">Sell</option>
             </select>
-            <input type="number" value={qty} onChange={(e) => setQty(Number(e.target.value))} min={1} style={{ width: 80 }} />
+            <input type="number" value={qty} onChange={(e) => setQty(Number(e.target.value))} min={0.001} step={0.001} style={{width:100}} />
             <button onClick={submit}>Submit Paper Order</button>
           </div>
-        )}
-        {msg && <p style={{ marginTop: 8 }}>{msg}</p>}
+        ) : null}
+        {msg && <p style={{ marginTop: "var(--space-2)" }} className="mono">{msg}</p>}
       </div>
 
-      <h3 style={{ marginTop: 16 }}>Order History</h3>
-      {orders && orders.length > 0 ? (
-        <table><thead><tr><th>ID</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Status</th></tr></thead>
+      <h3 style={{ marginTop: "var(--space-6)" }}>Order History</h3>
+      {ordLoading ? <div className="skeleton" style={{height:80}} /> :
+       orders && orders.length > 0 ? (
+        <table><thead><tr><th>ID</th><th>Symbol</th><th>Side</th><th className="mono">Qty</th><th>Status</th></tr></thead>
           <tbody>{orders.map((o: Record<string,unknown>) => (
-            <tr key={o.id as string}><td>{o.id as string}</td><td>{o.symbol as string}</td><td>{o.side as string}</td><td>{o.qty as string}</td><td>{o.status as string}</td></tr>
+            <tr key={o.id as string}><td className="mono">{String(o.id).slice(0,12)}</td><td>{o.symbol as string}</td>
+              <td className={o.side === "buy" ? "positive" : "negative"}>{o.side as string}</td>
+              <td className="mono">{String(o.qty)}</td><td>{o.status as string}</td></tr>
           ))}</tbody></table>
-      ) : <p>No orders yet</p>}
+      ) : <p className="fg-muted">No orders yet</p>}
     </div>
   );
 }

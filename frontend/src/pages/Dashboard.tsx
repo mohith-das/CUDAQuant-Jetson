@@ -38,9 +38,9 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <h3>Trading</h3>
-          <p>Mode: <strong>{checks?.trading_mode as string}</strong></p>
-          <p>Live: {checks?.live_trading_enabled ? "⚠ ENABLED" : "✓ Disabled"}</p>
-          <p>Broker: {ks?.broker_connected ? "✓ Connected" : "✗ Disconnected"}</p>
+          <p>Mode: <strong>{String(checks?.trading_mode ?? "?")}</strong></p>
+          <p>Live: {checks?.live_trading_enabled ? <span className="pill pill-warning">ENABLED</span> : <span className="pill pill-positive">Disabled</span>}</p>
+          <p>Broker: {ks?.broker_connected ? <span className="pill pill-positive">Connected</span> : <span className="pill pill-negative">Disconnected</span>}</p>
         </div>
         <div className="card danger">
           <h3>Kill Switch</h3>

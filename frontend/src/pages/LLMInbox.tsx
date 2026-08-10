@@ -11,138 +11,83 @@ interface Experiment {
   metrics: Record<string, unknown> | null;
 }
 
-const PASSED_STATUSES = new Set([
-  "backtest_passed",
-  "paper_candidate",
-  "paper_running",
-  "probation",
-  "production",
-]);
-const FAILED_STATUSES = new Set(["failed", "rejected"]);
-
-const fmtTime = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleString() : "—";
+const PASSED_STATUSES = new Set(["backtest_passed","paper_candidate","paper_running","probation","production"]);
+const FAILED_STATUSES = new Set(["failed","rejected"]);
 
 export default function LLMInbox() {
-  const { data: exps, isLoading } = useQuery({
+  const { data: experiments, isLoading, error } = useQuery({
     queryKey: ["experiments"],
     queryFn: () => apiFetch<Experiment[]>("/api/experiments/"),
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
-  const { data: system } = useQuery({
-    queryKey: ["system"],
-    queryFn: () => apiFetch<Record<string, unknown>>("/api/system/"),
-    refetchInterval: 10000,
-  });
-  const { data: scheduler } = useQuery({
-    queryKey: ["scheduler"],
-    queryFn: () => apiFetch<Record<string, unknown>>("/api/scheduler/"),
-    refetchInterval: 5000,
-  });
-  const [msg, setMsg] = useState("");
+  const [running, setRunning] = useState(false);
 
-  const llmExps = (exps ?? []).filter((e) => e.origin === "llm");
-  const passed = llmExps.filter((e) => PASSED_STATUSES.has(e.status)).length;
-  const failed = llmExps.filter((e) => FAILED_STATUSES.has(e.status)).length;
+  const llmExps = (experiments || []).filter(
+    (e: Experiment) => e.origin === "llm" || e.origin === "llm_fallback"
+  );
+  const realLLM = llmExps.filter(e => e.origin === "llm");
+  const fallbackLLM = llmExps.filter(e => e.origin === "llm_fallback");
+  const passed = llmExps.filter(e => PASSED_STATUSES.has(e.status)).length;
+  const failed = llmExps.filter(e => FAILED_STATUSES.has(e.status)).length;
   const pending = llmExps.length - passed - failed;
 
   const runAnalysis = async () => {
-    setMsg("");
+    setRunning(true);
     try {
-      const r = await apiFetch<Record<string, unknown>>(
-        "/api/scheduler/jobs/llm_analyze/run-now",
-        { method: "POST" }
-      );
-      setMsg(`Analysis triggered: ${String(r.last_result ?? "")}`);
+      await apiFetch("/api/scheduler/jobs/llm_analyze/run-now", { method: "POST" });
       queryClient.invalidateQueries({ queryKey: ["experiments"] });
-      queryClient.invalidateQueries({ queryKey: ["scheduler"] });
-    } catch (e: unknown) {
-      setMsg(`Run failed: ${(e as Error).message}`);
-    }
+    } catch (e: unknown) { /* ignore */ }
+    setRunning(false);
   };
 
-  const llmJob = scheduler?.llm_analyze as Record<string, unknown> | undefined;
-
-  const budgetKeys = [
-    "daily_calls",
-    "daily_cost_usd",
-    "monthly_cost_usd",
-    "daily_limit",
-    "daily_budget_usd",
-    "monthly_budget_usd",
-  ];
-  const budgetAvailable = !!system && budgetKeys.some((k) => k in system);
-
-  if (isLoading) return <p>Loading experiments...</p>;
+  if (isLoading) return <div className="skeleton" style={{height:200}} />;
+  if (error) return <div className="error-box">Cannot load experiments — {String(error)}</div>;
 
   return (
     <div>
-      <h2>LLM Inbox</h2>
+      <h2>LLM Proposal Inbox</h2>
       <div className="cards">
         <div className="card">
-          <h3>LLM Proposals</h3>
-          <p>{llmExps.length} total from LLM origin</p>
-          <p className="safe-text">{passed} passed</p>
-          <p className="danger-text">{failed} failed</p>
-          <p>{pending} pending</p>
+          <h3>LLM Activity</h3>
+          <p className="mono" style={{fontSize:"var(--text-metric)", color:"var(--accent)"}}>{llmExps.length}</p>
+          <p style={{color:"var(--fg-muted)"}}>Total from LLM origin</p>
+          <div style={{display:"flex",gap:"var(--space-4)",marginTop:"var(--space-2)"}}>
+            <span><span className="pill pill-positive">{passed}</span> Passed</span>
+            <span><span className="pill pill-negative">{failed}</span> Failed</span>
+            <span><span className="pill pill-accent">{pending}</span> Pending</span>
+          </div>
+          <div style={{marginTop:"var(--space-2)",color:"var(--fg-faint)",fontSize:"var(--text-eyebrow)"}}>
+            {realLLM.length} real LLM · {fallbackLLM.length} fallback (LLM unavailable)
+          </div>
         </div>
         <div className="card">
-          <h3>LLM Budget</h3>
-          {budgetAvailable ? (
-            budgetKeys.map((k) => (
-              <p key={k}>
-                {k}: {String(system[k] ?? "—")}
-              </p>
-            ))
-          ) : (
-            <>
-              <p>LLM budget counters are not exposed by /api/system/ yet.</p>
-              <p>Mode: {String(system?.trading_mode ?? "—")}</p>
-              <p>GPU: {system?.gpu_active ? "✓ Active" : "✗ Inactive"}</p>
-            </>
-          )}
-        </div>
-        <div className="card">
-          <h3>LLM Analyze Job</h3>
-          <p>Last run: {fmtTime(llmJob?.last_run as string | null)}</p>
-          <p>Last result: {String(llmJob?.last_result ?? "—")}</p>
-          <button onClick={runAnalysis} style={{ marginTop: 8 }}>
-            Run Analysis Now
+          <h3>Budget</h3>
+          <p style={{color:"var(--fg-muted)",fontSize:"var(--text-body)"}}>
+            LLM budget is tracked server-side via LLMBudget. Check /api/system/ for counters.
+          </p>
+          <button onClick={runAnalysis} disabled={running} style={{marginTop:"var(--space-3)"}}>
+            {running ? "Running..." : "Run Analysis Now"}
           </button>
         </div>
       </div>
 
-      {msg && <p style={{ marginBottom: 8 }}>{msg}</p>}
-
-      {llmExps.length > 0 ? (
+      {llmExps.length === 0 ? (
+        <div className="empty-state">No LLM-originated experiments yet. Run an analysis to generate one.</div>
+      ) : (
         <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Hypothesis</th>
-              <th>Status</th>
-              <th>Metrics</th>
-              <th>Created</th>
-            </tr>
-          </thead>
+          <thead><tr><th>ID</th><th>Hypothesis</th><th>Origin</th><th>Status</th><th>Metrics</th></tr></thead>
           <tbody>
-            {llmExps.map((e) => (
+            {llmExps.map((e: Experiment) => (
               <tr key={e.experiment_id}>
-                <td>{e.experiment_id}</td>
-                <td>{e.hypothesis}</td>
-                <td>{e.status}</td>
-                <td>
-                  {e.metrics && Object.keys(e.metrics).length > 0
-                    ? JSON.stringify(e.metrics)
-                    : "—"}
-                </td>
-                <td>{fmtTime(e.created_at)}</td>
+                <td className="mono">{e.experiment_id}</td>
+                <td>{e.hypothesis?.slice(0, 80)}</td>
+                <td><span className={`pill ${e.origin === "llm" ? "pill-accent" : "pill-warning"}`}>{e.origin}</span></td>
+                <td><span className={`pill ${PASSED_STATUSES.has(e.status) ? "pill-positive" : FAILED_STATUSES.has(e.status) ? "pill-negative" : "pill-accent"}`}>{e.status}</span></td>
+                <td className="mono">{e.metrics ? JSON.stringify(e.metrics).slice(0, 40) : "—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      ) : (
-        <p>No LLM-originated experiments yet. Run analysis to propose one.</p>
       )}
     </div>
   );
