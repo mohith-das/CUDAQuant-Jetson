@@ -114,6 +114,26 @@ else:
         return {"message": "CUDAQuant API running — frontend not built.",
                 "docs": "/docs"}
 
+# SPA fallback: for any non-API path that didn't match a static file,
+# serve index.html so React Router handles client-side routing.
+# Registered after static mount so static files take priority.
+if frontend_dist.exists():
+    from fastapi import Request
+    from fastapi.responses import FileResponse, JSONResponse
+
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str, request: Request):
+        # Don't intercept API, WebSocket, health, or docs paths
+        if full_path.startswith(("api/", "ws/", "health", "readiness", "docs")):
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        index = frontend_dist / "index.html"
+        return FileResponse(str(index))
+else:
+    @app.get("/")
+    def root():
+        return {"message": "CUDAQuant API running — frontend not built.",
+                "docs": "/docs"}
+
 
 def _setup_scheduler_callbacks(scheduler):
     """Wire scheduler jobs to real operations."""
