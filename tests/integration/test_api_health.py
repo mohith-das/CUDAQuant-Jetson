@@ -6,10 +6,21 @@ They also assert the SAFETY invariant that live trading is OFF by default,
 which the readiness probe must faithfully report.
 """
 
-import pytest
-from fastapi.testclient import TestClient
+import os
+import tempfile
+from pathlib import Path
 
-from cudaquant.api.app import app
+import pytest
+
+# Isolate from production DB BEFORE importing the app
+_test_dir = Path(tempfile.mkdtemp(prefix="cudaquant_test_"))
+_test_dir.mkdir(exist_ok=True)
+os.environ["DUCKDB_PATH"] = str(_test_dir / "cudaquant.duckdb")
+os.environ["DATA_DIR"] = str(_test_dir)
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from cudaquant.api.app import app  # noqa: E402
 
 pytestmark = pytest.mark.integration
 

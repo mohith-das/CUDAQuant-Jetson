@@ -146,7 +146,7 @@ class SchedulerService:
         except Exception as e:
             config.last_result = f"error: {e}"
             config.last_run = datetime.now(timezone.utc).isoformat()
-            logger.error("Job %s failed: %s", name, e)
+            logger.error("Job %s failed: %s", name, e, exc_info=True)
             from cudaquant.alerts.telegram import TelegramAlerter
 
             TelegramAlerter().send(

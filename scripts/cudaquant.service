@@ -1,0 +1,26 @@
+# CUDAQuant-Jetson systemd service
+# Copy to /etc/systemd/system/cudaquant.service and edit paths as needed.
+# Enable: sudo systemctl enable cudaquant
+# Start:  sudo systemctl start cudaquant
+
+[Unit]
+Description=CUDAQuant-Jetson API Server
+After=network.target
+
+[Service]
+Type=simple
+User=matt
+WorkingDirectory=/home/matt/code/cudaquant
+Environment="PATH=/home/matt/code/cudaquant/.venv/bin:/usr/local/cuda/bin:/usr/bin:/bin"
+Environment="LD_LIBRARY_PATH=/home/matt/code/cudaquant/cuda/lib:/usr/local/cuda/lib64"
+Environment="API_AUTH_TOKEN=change-me"
+Environment="HOST=127.0.0.1"
+Environment="PORT=8000"
+ExecStart=/home/matt/code/cudaquant/.venv/bin/python -m uvicorn cudaquant.api.app:app --host ${HOST} --port ${PORT} --log-level info
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/home/matt/code/cudaquant/logs/server.log
+StandardError=append:/home/matt/code/cudaquant/logs/server_error.log
+
+[Install]
+WantedBy=multi-user.target

@@ -183,7 +183,7 @@ class LLMResearchAgent:
                 logger.info("LLM proposal blocked: %s", reason)
                 return self._default_proposal(context), False
 
-            response = self._provider.generate(prompt, max_tokens=500)
+            response = self._provider.generate(prompt, max_tokens=800)
             self.budget.record_call(tokens=500, cost_usd=0.0025)
 
             # Parse structured output with proper validation
@@ -203,15 +203,32 @@ class LLMResearchAgent:
         """Parse LLM response into a validated ExperimentProposal. Returns None on failure."""
         import json as _json
 
+        # Log the raw response for debugging parse failures
+        logger.debug("LLM raw response (first 500 chars): %s", response[:500])
+
+        # Strip markdown code fences if present
+        cleaned = response.strip()
+        if cleaned.startswith("```"):
+            # Find the first newline after opening fence
+            nl = cleaned.find("\n")
+            if nl > 0:
+                cleaned = cleaned[nl + 1:]
+            # Remove closing fence
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
         # Try to extract JSON from response
-        json_start = response.find("{")
-        json_end = response.rfind("}")
+        json_start = cleaned.find("{")
+        json_end = cleaned.rfind("}")
         if json_start < 0 or json_end <= json_start:
+            logger.warning("LLM response contains no JSON object: %.200s", response)
             return None
 
         try:
-            data = _json.loads(response[json_start:json_end + 1])
-        except _json.JSONDecodeError:
+            data = _json.loads(cleaned[json_start:json_end + 1])
+        except _json.JSONDecodeError as e:
+            logger.warning("LLM response JSON parse error: %s — raw: %.200s", e, response)
             return None
 
         if not isinstance(data, dict):
@@ -219,12 +236,14 @@ class LLMResearchAgent:
 
         # Require at minimum a non-empty hypothesis
         if not data.get("hypothesis", "").strip():
+            logger.warning("LLM response missing non-empty hypothesis field: %s", data)
             return None
 
         # Validate and create
         try:
             return ExperimentProposal(**data)
-        except Exception:
+        except Exception as e:
+            logger.warning("LLM response failed ExperimentProposal validation: %s — data: %s", e, data)
             return None
 
     def diagnose_failures(self, failed_trades: list[dict]) -> str:
@@ -272,7 +291,13 @@ class LLMResearchAgent:
                 "You have access to web search (Brave/Tavily) and URL scraping (Firecrawl). "
                 "If you need current information to analyze this performance, request it."
             ),
-            "format": "Return JSON with keys: hypothesis, reasoning_summary, proposed_change, metrics_to_evaluate, expected_failure_modes, priority",
+            "format": (
+                "Return ONLY a JSON object (no markdown, no backticks, no other text). "
+                "Keys: hypothesis (1-2 sentences), reasoning_summary (1 sentence), "
+                "proposed_change (1 sentence), metrics_to_evaluate (list of 2-4 strings), "
+                "expected_failure_modes (list of 2-3 strings), priority (int 1-5). "
+                "Keep all string values under 150 characters each."
+            ),
         })
 
     def _build_failure_prompt(self, failed_trades: list[dict]) -> str:

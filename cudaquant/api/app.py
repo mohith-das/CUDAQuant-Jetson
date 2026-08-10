@@ -59,6 +59,11 @@ async def lifespan(app: FastAPI):
     set_scheduler(scheduler)
     scheduler.start()
     logger.info("Scheduler started")
+
+    # Log restart for crash recovery visibility
+    from cudaquant.alerts.telegram import TelegramAlerter
+    TelegramAlerter().send(f"CUDAQuant server started (mode={settings.TRADING_MODE})")
+
     yield
     scheduler.stop()
     logger.info("CUDAQuant API shutdown complete")

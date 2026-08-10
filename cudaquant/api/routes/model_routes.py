@@ -65,9 +65,9 @@ def live_performance(model_id: str):
     if m is None:
         raise HTTPException(404, "Model not found")
 
-    # Get fills from the broker
-    from cudaquant.execution.order_service import OrderService
-    svc = OrderService()
+    # Get fills from the broker via the shared OrderService
+    from cudaquant.api.routes.risk_routes import _order_service
+    svc = _order_service
     orders = svc.list_orders(status="closed", limit=100)
 
     # Simple: return order count as a stand-in for real P&L tracking
