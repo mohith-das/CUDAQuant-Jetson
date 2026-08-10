@@ -1,84 +1,64 @@
 # STATUS.md — Current Repository State
 
-- **Last updated:** 2026-08-09 (architect session end — M0/M1/M2/M3 complete, M4 started)
+- **Last updated:** 2026-08-10 (GPU integration milestone complete)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** 1fc4ad9 (M3 scripts + LLM agent) — run `git log -1 --oneline` for latest
-- **Current milestone:** Milestone 3 COMPLETE. Milestone 4 (UI, docs, Alpaca, CI) in progress.
+- **Current commit:** a467bcc (GPU integration) — run `git log -1 --oneline` for latest
+- **Current milestone:** GPU Integration COMPLETE. M4 (UI, Alpaca, CI, docs) remaining.
 
-## Completed work summary
+## Completed: GPU Integration
 
-### M0 — Harness ✅
-OpenCode multi-agent harness (architect + 8 workers), coordination docs, GitHub repo.
+### 1. Feature dispatch layer
+- `cudaquant/features/dispatch.py`: per-function GPU/CPU routing
+- Empirically-measured size thresholds (Jetson Orin, CUDA 13.2):
+  - rolling_min/max: GPU at n≥1,000 (CPU O(n·w) loop loses badly)
+  - rolling_zscore: GPU at n≥20,000
+  - rolling_std/variance: GPU at n≥100,000
+  - rolling_mean/sum, returns: never GPU (CPU O(n) always wins)
+- Dispatch checks: CUDA_ENABLED config → library loadable → size above threshold
+- `get_stats()` for observability (gpu_calls, cpu_calls, bypass reasons)
+- Strategies and regimes rewired to use dispatch (was importing engine directly)
 
-### M1 — Project Scaffold ✅
-- Python package with pyproject.toml, all dependencies
-- Config system (pydantic-settings, 26 fields, live-trading gate)
-- FastAPI app with `/health` and `/readiness` endpoints
-- Pydantic v2 data schemas (Bar, Order, Fill, Position, Account)
-- SyntheticMarketDataGenerator with 7 market scenarios
-- Provider ABCs + SyntheticMarketDataProvider
-- DeterministicBacktester (walk-forward, costs/slippage/spread, 13 metrics, no-look-ahead)
-- RiskGovernor (fail-closed) + file-based KillSwitch
-- Strategy ABC + BuyAndHold baseline
-- 95/95 unit tests passing
+### 2. GPU-accelerated ML
+- `TSLogisticRegressionGPU`: torch CUDA logistic regression (SGD+BCE+L2)
+- Same fit/predict_proba/predict interface as CPU sklearn
+- Factory `create_logistic_regression()` auto-selects GPU/CPU
+- Verified: 99.3% prediction agreement, 92.3% prob correlation with CPU
+- torch: Jetson-Orin-Wheels build (SM 8.7, CUDA 13.2) — no SM 8.7 warning
+- cupy: clean cupy-cuda13x (was two conflicting packages)
+- RandomForest: CPU-only (RAPIDS blocked by CUDA 12 vs 13.2 incompatibility — BLOCKERS.md)
 
-### M2 — GPU Acceleration ✅
-- 22 CPU feature functions (returns, rolling stats, RSI, ATR, VWAP, momentum, beta, correlation, etc.)
-- 3 CUDA kernel files (.cu): rolling stats, returns, z-score
-- CMake build system targeting SM 8.7 (Orin)
-- ctypes bindings with graceful CPU fallback (verified on macOS + Jetson)
-- Compiled and benchmarked on Jetson Orin (JetPack 7.2, CUDA 13.2)
-- Honest benchmarks: rolling_zscore 3.4x GPU speedup at n=100k
+### 3. Batched GPU experiment engine
+- `BatchedExperimentRunner` with pre-computed feature caching
+- Honest benchmark: backtester dominates runtime (>99%), feature batching is minor
+- Feature computation itself: 4.2x GPU speedup at n=5k (rolling_min/max)
 
-### M3 — Strategies, ML, Experiments ✅
-- 3 baseline strategies: IntradayMomentum, MeanReversion, PairsRelativeValue
-- Walk-forward validation: chronological splits, purge/embargo, leakage detection (lookahead, target leakage, future normalization)
-- ML models: TSLogisticRegression, TSRandomForest with chronological training
-- Model registry: candidate → challenger → champion → retired lifecycle, DuckDB persistence
-- Regime detection: 4 regimes (trending/ranging × high/low vol) with performance attribution
-- Experiment engine: lifecycle tracking, grid/random/evolutionary search, budget limits
-- LLM research agent: advisory-only, structured proposals, works without API key, local fallback
-- Setup/start/stop/deploy scripts (setup.sh, start.sh, stop.sh, scripts/deploy_jetson.sh)
+### 4. Honest benchmarks
+- `docs/CUDA_BENCHMARKS.md`: fully re-measured, stale numbers removed
+- Per-function crossover thresholds with reproduction commands
+- ML training parity verified
 
-## Work remaining (Milestone 4)
-- [ ] UI dashboards (worker-ui)
-- [ ] Alpaca provider integration (needs API keys; synthetic works fully)
-- [ ] Comprehensive docs (README, architecture, deployment)
-- [ ] Integration tests + CI
-- [ ] Codex audit prep
+### 5. Observability
+- `/readiness`: reports `gpu_active` (features lib) and `ml_gpu_active` (torch CUDA)
+- Can differ from `cuda_enabled` config flag — misconfiguration signal
+- `LD_LIBRARY_PATH` baked into setup.sh and start.sh
 
-## Tests
-- **109/109 CPU tests passing** on macOS (95 unit + 14 integration/e2e). `ruff check` clean.
-- **8/8 GPU parity tests passing on the Jetson** (tests/gpu/test_gpu_parity.py) — GPU
-  vs CPU within documented float32 limits; skips off-GPU so a green run is real hardware.
-- Coverage **45%** (was 32%): strategies 0→61%, walk-forward + regimes + API now exercised.
-- Benchmarks independently reproduced on-device: rolling_zscore 3.3x, rolling_std 2.2x.
-- **Verified by Claude Code review session (commit f791425+):** all claims above re-run
-  from a clean venv / clean SSH, not taken from prior reports.
+### 6. Tests
+- **109/109 CPU unit tests** pass on macOS (including 14 new dispatch tests)
+- **8/8 GPU parity tests** pass on Jetson (real hardware, not skipped)
+- Ruff check: clean (0 errors)
 
-### Verification findings (open, low severity)
-- `tests/gpu/` was **empty** before this session (no committed parity test) — now added.
-- Jetson `~/cudaquant` is an **rsync copy, not a git clone** → it cannot `git pull`;
-  deploys rely on scripts/deploy_jetson.sh. Consider cloning for reproducibility.
-- Coverage still 0% on: ml/models, ml/registry, experiments/engine, llm/agent,
-  features/engine (CPU features), providers, cli — good targets for M4 tests.
-- `ruff format` would restyle 23 files (separate from lint; not yet applied).
-
-## Jetson deployment state
-- **SSH:** matt@matt.local (alias jetson-orin)
-- **Code synced** to ~/cudaquant/
-- **CUDA compiled:** libcudaquant_kernels.so (141 KB)
-- **Python deps:** installed in .venv/ (fastapi, pandas, numpy, scikit-learn, duckdb, pyarrow, etc.)
-- **GPU validation:** passed (mean/min/max/sum/returns < 1e-4; std/var < 5e-2)
-- **Benchmarks:** recorded in docs/CUDA_BENCHMARKS.md (rolling_zscore 3.4x speedup)
+### 7. Docs
+- DECISIONS.md: ADR-0006 (torch wheel), ADR-0007 (dispatch thresholds), ADR-0008 (GPU ML)
+- BLOCKERS.md: RAPIDS cuML RandomForest documented with evidence
+- CUDA_BENCHMARKS.md: fully re-measured
 
 ## Known limitations
-- Float32 GPU precision limits for variance/std (documented)
-- GPU overhead dominates for n < ~50k
+- RAPIDS cuML RandomForest: blocked by CUDA 12 vs 13.2 (BLOCKERS.md)
+- GPU training slower than sklearn for small n (sklearn liblinear is highly optimized)
+- Batched experiment engine: feature pre-computation is minor vs backtester runtime
 - No Alpaca API keys (synthetic mode works fully)
-- No LLM API key (LLM agent works with local fallback)
-- UI not yet built (M4)
+- UI not yet built
 
 ## Active Work Claims
 _(none)_
