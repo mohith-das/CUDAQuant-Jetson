@@ -28,8 +28,9 @@ def serve(host: str, port: int, reload: bool) -> None:
 @main.command()
 def version() -> None:
     """Print version and environment info."""
-    import sys
     import platform
+    import sys
+
     from cudaquant import __version__
 
     click.echo(f"CUDAQuant-Jetson v{__version__}")

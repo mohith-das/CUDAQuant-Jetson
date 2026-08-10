@@ -2,23 +2,26 @@
 
 <!-- The architect updates this frequently so any fresh agent can resume instantly. -->
 
-- **Last updated:** 2026-08-09 (harness bootstrap by Claude Code)
+- **Last updated:** 2026-08-09 (architect session, Milestone 1 in progress)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** 67f3885 (harness bootstrap) — run `git log -1 --oneline` for latest
-- **Current milestone:** Milestone 0 (harness bootstrap) — COMPLETE. Next: Milestone 1.
+- **Current commit:** 6f8ba06 (M1 scaffold) — run `git log -1 --oneline` for latest
+- **Current milestone:** Milestone 1 (project scaffold) — IN PROGRESS.
 
 ## Completed work
-- OpenCode 1.18.10 multi-agent harness (architect + 8 Flash workers) configured and
-  validated. See DECISIONS.md and CHANGELOG_AGENT.md.
+- M0: OpenCode 1.18.10 multi-agent harness (architect + 8 Flash workers) configured and validated.
+- M1 scaffold: `cudaquant/` package, `pyproject.toml`, `tests/`, `.env.example`, CLI stub, all `__init__.py` files created and committed.
 
 ## Work in progress
-- None. Awaiting the first OpenCode `architect` session to start Milestone 1.
+- Dispatching 4 workers concurrently: worker-backend (FastAPI+config), worker-data (schemas+synthetic), worker-quant (backtester+risk), worker-tests (test infra).
 
 ## Next actions
-1. Launch OpenCode in this repo (`opencode` → default agent is `architect`) or run `/resume`.
-2. Scaffold the `cudaquant/` package + `pyproject.toml` + `tests/` (Milestone 1).
-3. Stand up FastAPI health/readiness + config system + deterministic backtester skeleton.
+1. Integrate worker output, run tests, fix issues.
+2. Commit and push.
+3. Verify M1 checklist completion, update PLAN.md.
+
+## Jetson deployment state
+- NOT accessible. SSH key not authorized (see BLOCKERS.md). All CPU work continues.
 
 ## Tests
 - No application tests yet (no app code). Harness validated via smoke test.

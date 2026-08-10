@@ -37,14 +37,15 @@ CMakeCache.txt
 CMakeFiles/
 
 # ── Data / models / experiment outputs (keep the repo lean) ────────────────
-data/
+/data/
 *.parquet
 *.duckdb
 *.duckdb.wal
-models/
-mlruns/
-experiments/runs/
-benchmarks/results/
+/models/
+/mlruns/
+/experiments/runs/
+/benchmarks/results/
+.kill_switch
 
 # ── OpenCode local state & smoke artifacts ─────────────────────────────────
 .opencode/cache/
