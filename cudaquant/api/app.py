@@ -103,31 +103,43 @@ app.include_router(system_router)
 app.include_router(regime_router)
 app.include_router(sched_router)
 
-# ── Static UI (mounted last so /api/* and /ws/* take precedence) ─────────────
+# ── Static UI (served inline so SPA fallback works) ──────────────────────────
 frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
-if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="static")
-    logger.info("Serving static UI from %s", frontend_dist)
-else:
-    @app.get("/")
-    def root():
-        return {"message": "CUDAQuant API running — frontend not built.",
-                "docs": "/docs"}
-
-# SPA fallback: for any non-API path that didn't match a static file,
-# serve index.html so React Router handles client-side routing.
-# Registered after static mount so static files take priority.
 if frontend_dist.exists():
     from fastapi import Request
     from fastapi.responses import FileResponse, JSONResponse
+    from fastapi.staticfiles import StaticFiles
 
+    # Serve static assets (JS, CSS, images) directly
+    assets = frontend_dist / "assets"
+    if assets.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets)), name="static_assets")
+    # Serve favicon and other root-level static files
+    app.mount("/static-root", StaticFiles(directory=str(frontend_dist), html=False), name="static_root")
+
+    # SPA catch-all: serve index.html for any path not matched by API routes
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str, request: Request):
-        # Don't intercept API, WebSocket, health, or docs paths
-        if full_path.startswith(("api/", "ws/", "health", "readiness", "docs")):
+        # API, WebSocket, health, and docs pass through to their routers
+        if full_path.startswith(("api/", "ws/", "health", "readiness", "docs", "openapi.json")):
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        # Static asset paths — let the mounts handle these
+        if full_path.startswith("assets/"):
             return JSONResponse({"detail": "Not Found"}, status_code=404)
         index = frontend_dist / "index.html"
-        return FileResponse(str(index))
+        if index.exists():
+            return FileResponse(str(index))
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+
+    # Root path
+    @app.get("/")
+    async def root_spa():
+        index = frontend_dist / "index.html"
+        if index.exists():
+            return FileResponse(str(index))
+        return {"message": "CUDAQuant API running"}
+
+    logger.info("Serving static UI from %s", frontend_dist)
 else:
     @app.get("/")
     def root():
