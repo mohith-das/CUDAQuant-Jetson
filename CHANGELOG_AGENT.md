@@ -2,20 +2,15 @@
 
 > Terse, newest-first. One entry per meaningful handoff so any agent can pick up.
 
-## 2026-08-09 — Milestone 1 complete (architect)
-- Scouted Jetson Orin: JetPack 7.2, CUDA 13.2, Python 3.12.3, 7.3 GiB RAM. Fixed SSH config
-  to `matt@matt.local`. Wrote `docs/JETSON_ENVIRONMENT.md`.
-- Created project scaffold: `cudaquant/` package, `pyproject.toml`, directories, CLI stub.
-- Dispatched 4 workers in parallel: worker-backend (FastAPI+config), worker-data (FAILED —
-  produced no files), worker-quant (backtester+risk+strategies), worker-tests (test infra).
-- Implemented missing worker-data modules (PRO): schemas, synthetic generator (7 scenarios),
-  data quality checks, provider ABCs, synthetic provider.
-- Fixed all API mismatches between test assumptions and implementation: updated schemas
-  (field names, constraints), synthetic API (generate_bars signature, validate_bar accepts
-  both Bar and dict), seed propagation, .gitignore (anchored /data/ to root).
-- 95/95 unit tests passing. Full stack smoke test verified.
-- Commit b872f2a pushed. M1 marked complete in PLAN.md. Ready for M2 (GPU acceleration).
-- **Handoff:** next session resumes from STATUS.md → Milestone 2.
+## 2026-08-09 — M0, M1, M2, M3 complete (architect session)
+- **M0:** Harness validated (already existed). Jetson probed (JetPack 7.2, CUDA 13.2), SSH fixed to matt@matt.local. Wrote docs/JETSON_ENVIRONMENT.md.
+- **M1:** Full project scaffold. Config (26 fields), FastAPI health/readiness, data schemas (Pydantic v2), synthetic generator (7 scenarios), provider ABCs, deterministic backtester (walk-forward, 13 metrics), risk governor (fail-closed), kill switch. 95/95 tests passing. Fixed .gitignore anchoring (/data/ blocking cudaquant/data/).
+- **M2:** 22 CPU features (returns through time-of-day encoding). 3 CUDA kernel files (rolling stats, returns, zscore). CMake build + ctypes bindings with CPU fallback. Compiled on Jetson. Benchmarks: rolling_zscore 3.4x GPU speedup. 95 tests still pass.
+- **M3a** (strategies+ML): IntradayMomentum, MeanReversion, PairsRelativeValue. Walk-forward validation with leakage guards (lookahead, target leakage, future normalization). TSLogisticRegression, TSRandomForest. Model registry (champion/challenger). Regime detection (4 regimes).
+- **M3b** (experiments+LLM+scripts): ExperimentEngine (grid/random/evolutionary search, budgets). LLMResearchAgent (advisory-only, structured proposals, local fallback). setup.sh, start.sh, stop.sh, deploy_jetson.sh.
+- **README:** written with architecture, benchmarks, safety, quick start.
+- **Commit:** 43163eb pushed. PLAN.md: M0-M3 checked off, M4 scoped (UI, Alpaca, docs, CI, audit).
+- **Handoff:** M4 remaining (UI, Alpaca integration, full docs, CI, Codex audit). 95 tests pass, GPU validated on Jetson.
 
 ## 2026-08-09 — Harness bootstrap (Claude Code)
 - Inspected environment: OpenCode **1.18.10** (> 1.14.24 floor → no upgrade), DeepSeek
