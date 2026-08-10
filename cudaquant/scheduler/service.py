@@ -265,9 +265,15 @@ class SchedulerService:
     # ── DuckDB persistence ──────────────────────────────────────────────────
 
     def _init_db(self) -> None:
+        import os
+
+        import duckdb
+
+        from cudaquant.config.settings import settings
         try:
-            from cudaquant.storage.db import get_connection
-            con = get_connection()
+            db_path = self._db_path or settings.DUCKDB_PATH
+            os.makedirs(os.path.dirname(str(db_path)), exist_ok=True)
+            con = duckdb.connect(str(db_path))
             con.execute("""
                 CREATE TABLE IF NOT EXISTS scheduler_state (
                     key VARCHAR PRIMARY KEY,
@@ -284,9 +290,9 @@ class SchedulerService:
     def _persist_state(self) -> None:
         if not self._db_path:
             return
+        import duckdb
         try:
-            from cudaquant.storage.db import get_connection
-            con = get_connection()
+            con = duckdb.connect(str(self._db_path))
             state_dict = {
                 "ingest": self._job_to_dict(self._state.ingest),
                 "retrain": self._job_to_dict(self._state.retrain),
@@ -306,9 +312,9 @@ class SchedulerService:
             raise
 
     def _load_state(self) -> None:
+        import duckdb
         try:
-            from cudaquant.storage.db import get_connection
-            con = get_connection()
+            con = duckdb.connect(str(self._db_path))
             row = con.execute(
                 "SELECT value FROM scheduler_state WHERE key='state'"
             ).fetchone()
