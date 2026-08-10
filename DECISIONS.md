@@ -359,3 +359,34 @@ by the API, not read). New alert call sites should append the fire-and-forget ca
 at the end of an existing path and keep messages factual (what happened + UTC
 timestamp). Credentials remain env-only; never commit a real token/chat id.
 Implementation lives in the working tree, **not yet committed** — see STATUS.md.
+
+## ADR-0018 — Systemic audit of stateful class construction patterns
+**Date:** 2026-08-10 · **Status:** Accepted
+
+**Context:** Three correction passes identified the same root-cause bug: a
+stateful class (ExperimentEngine, ModelRegistry, LLMResearchAgent) was
+constructed fresh per call instead of shared, so accumulated state (budget
+counters, cached DB loads) never persisted across calls. A full-tree audit
+was required to find any remaining instances.
+
+**Decision:** Audit completed across 34 stateful classes in cudaquant/.
+Findings:
+- **Already shared** (via get_shared_* or module-level singleton):
+  ExperimentEngine, ModelRegistry, LLMResearchAgent, OrderService,
+  SchedulerService (one instance in app.py lifespan).
+- **Scoped correctly** (owned by a shared singleton, not constructed
+  independently): RiskGovernor, KillSwitch, AlpacaBroker — all created
+  inside OrderService.__init__.
+- **Stateless / safe as-is** (per-call construction doesn't lose state):
+  AlpacaMarketDataProvider (API client, no cross-call state),
+  TelegramAlerter (reads config, sends HTTP, no accumulated state),
+  AlpacaCryptoMarketDataProvider, SyntheticMarketDataProvider,
+  BraveSearchTool/TavilySearchTool/FirecrawlTool (all stateless API
+  clients), FMPProvider, FinnhubProvider, SearchCache (optional, used
+  with explicit db_path).
+- **Not applicable** (constructed per-backtest or per-request intentionally):
+  DeterministicBacktester, Strategies, WalkForwardValidator,
+  SyntheticDataGenerator, RegimeDetector, TSLogisticRegression,
+  TSRandomForest, BatchedExperimentRunner.
+
+No other instances of the fresh-construction-per-call bug found.
