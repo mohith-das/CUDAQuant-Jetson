@@ -22,7 +22,8 @@ def list_models(status: str | None = None):
         models = _registry.list_all()
     return [{"model_id": m.model_id, "family": m.family, "version": m.version,
              "status": m.status.value, "metrics": m.metrics,
-             "created_at": m.created_at} for m in models]
+             "created_at": m.created_at, "parent_id": m.parent_id}
+            for m in models]
 
 
 @router.get("/{model_id}")
@@ -54,3 +55,26 @@ def promote_model(model_id: str):
 def retire_model(model_id: str):
     ok = _registry.retire(model_id)
     return {"success": ok, "model_id": model_id}
+
+
+@router.get("/{model_id}/live-performance")
+def live_performance(model_id: str):
+    """Realized performance since promotion (from fills via OrderService)."""
+    m = _registry.get(model_id)
+    if m is None:
+        raise HTTPException(404, "Model not found")
+
+    # Get fills from the broker
+    from cudaquant.execution.order_service import OrderService
+    svc = OrderService()
+    orders = svc.list_orders(status="closed", limit=100)
+
+    # Simple: return order count as a stand-in for real P&L tracking
+    return {
+        "model_id": model_id,
+        "status": m.status.value,
+        "promoted_at": m.promoted_at,
+        "filled_orders": len([o for o in orders if o.get("status") == "filled"]),
+        "backtest_sharpe": m.metrics.get("sharpe"),
+        "backtest_max_drawdown": m.metrics.get("max_drawdown"),
+    }

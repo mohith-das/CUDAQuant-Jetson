@@ -212,6 +212,34 @@ class TestOrderServiceGates:
         # Prove broker.submit_order was actually called — all gates passed
         mock_broker.submit_order.assert_called_once()
 
+    def test_market_order_with_unspecified_params(
+        self, mock_broker, permissive_governor, monkeypatch,
+    ):
+        """Market order with ONLY symbol/side/qty (no limit_price) runs all gates.
+
+        Regression for the Part 1 bug where an unset limit_price crashed with
+        NameError before any gate ran. `order_type` is schema-required (the
+        route layer supplies the "market" default), so the unspecified param
+        here is `limit_price` — the field whose None default hit the bug.
+        """
+        monkeypatch.setattr("cudaquant.execution.order_service.settings",
+                            _make_settings(TRADING_MODE="paper", ENABLE_LIVE_TRADING=False))
+
+        ks = KillSwitch("/tmp/test_market_order_unspecified")
+        ks.disengage()
+
+        order = Order(symbol="AAPL", side=OrderSide.BUY, order_type=OrderType.MARKET, qty=1)
+
+        service = OrderService(broker=mock_broker, governor=permissive_governor, kill_switch=ks)
+        ok, msg, order_id = service.submit_order(order)
+        assert ok, f"Market order should pass all gates, got: {msg}"
+        assert order_id is not None
+        # All 3 gates ran without crashing: account/positions fetched for the
+        # risk check, governor approved, kill switch checked, order submitted.
+        mock_broker.get_account.assert_called()
+        mock_broker.get_positions.assert_called()
+        mock_broker.submit_order.assert_called_once()
+
 
 def _make_settings(**overrides):
     """Create a Settings-like object with given overrides."""

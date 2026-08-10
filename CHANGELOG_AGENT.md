@@ -2,6 +2,35 @@
 
 > Terse, newest-first. One entry per meaningful handoff so any agent can pick up.
 
+## 2026-08-10 — Part 1 correction pass + Part 2 scheduler/autonomy build
+- **Part 1 (committed `8079f68`):** fixed market-order crash in
+  `order_service.py` (account/positions were read after ref-price construction
+  → NameError on every market order before any gate ran; now fetched first,
+  try/except routes failures through the risk-gate path). Fixed `list_orders`
+  SDK API in `alpaca_broker.py` (`GetOrdersRequest(filter=...)` instead of
+  `status=` direct kwarg). Added missing `timezone` import in
+  `alpaca_provider.py`. New regression test
+  `test_market_order_default_path_runs_all_gates`. Ruff 0 errors (0.15.11).
+  **128/128 unit tests pass** (full suite 141 passed, 1 GPU skip on macOS).
+- **Part 2 (uncommitted working tree):** scheduler service
+  (`cudaquant/scheduler/service.py`) — APScheduler `AsyncIOScheduler`, four
+  toggleable jobs (ingest 5m, retrain 1h, evaluate 2h, llm_analyze 4h),
+  DuckDB persistence of config + run history + auto-execute flag. 4th
+  execution gate `SCHEDULER_AUTO_EXECUTE` (default False, confirm-gated on
+  API). Structurally no promotion (no promote method; tested).
+  `scheduler_routes.py` REST endpoints; app.py lifespan starts scheduler and
+  wires callbacks (llm_analyze → LLMResearchAgent → ExperimentEngine.propose
+  origin=LLM). `live-performance` endpoint added (stand-in: filled order
+  count, not real P&L). `tests/unit/test_scheduler.py` (10 tests).
+- **Gaps for Part 2:** no frontend scheduler/autonomy pages yet; 4th gate not
+  yet consumed by an order path; scheduler changes not synced to Jetson or
+  e2e-verified.
+- **Docs updated:** STATUS.md (Part 1 + Part 2), DECISIONS.md (ADR-0012
+  APScheduler, ADR-0013 four gates, ADR-0014 LLM research-only), BLOCKERS.md
+  (limitations section).
+- **Handoff:** next: build scheduler/autonomy UI pages, then sync + e2e on
+  Jetson, then commit Part 2.
+
 ## 2026-08-09 — Verification & test-hardening (Claude Code)
 - Reproduced everything from clean state: fresh venv + `pip install -e .[dev]` → **95/95**.
 - **Lint:** ruff was NOT clean (46 errors). Fixed to **0** (f66c3ec): auto-fixes + scoped

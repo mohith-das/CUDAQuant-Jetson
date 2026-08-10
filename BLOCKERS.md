@@ -7,6 +7,25 @@
 ## Open
 - **RAPIDS cuML RandomForest GPU path blocked** — cuML 26.8.0 (installed via pip) requires CUDA 12 runtime libraries (`libnvrtc.so.12`) but Jetson Orin runs CUDA 13.2. Attempted: installed `cuml-cu12 26.8.0` via pip, verified libraries exist under `site-packages/libcuml/lib64/` and `site-packages/libcuvs/lib64/`, set `LD_LIBRARY_PATH` to include both, but import fails with `ImportError: libnvrtc.so.12: cannot open shared object file`. The system provides `libnvrtc.so` (CUDA 13) only — no CUDA 12 compatibility. No `cuml-cu13` package exists yet on PyPI (checked 2026-08-09). **Impact:** RandomForest remains CPU-only (sklearn). Logistic regression has a working GPU path via torch (Jetson-Orin-Wheels build for CUDA 13.2/SM 8.7).
 
+## Known limitations (not external blockers — tracked for completeness)
+These are intentional defaults or incomplete work, not unavailable external
+dependencies. Listed here per the Part 2 handoff so nobody mistakes them for
+"done".
+- **Live trading is OFF by default** — `ENABLE_LIVE_TRADING=False` everywhere;
+  the app runs in `paper`/synthetic mode unless explicitly enabled. Scheduler
+  auto-execute (`SCHEDULER_AUTO_EXECUTE`) is also OFF by default (ADR-0013).
+- **Part 2 has no frontend UI yet** — scheduler/autonomy pages and nav routes
+  are not built; the frontend still ships the original 8 pages. Scheduler
+  state is only reachable via the API (`/api/scheduler/*`).
+- **live-performance endpoint is a stand-in** — `GET /api/models/{id}/live-performance`
+  returns a filled-order count from OrderService plus stored backtest metrics;
+  it is not realized P&L tracking yet.
+- **4th execution gate not yet wired to an order path** — `can_auto_execute()`
+  is enforced by the scheduler API and covered by unit tests, but no
+  autonomous order submission path exists to consume it yet.
+- **WebSocket auth not enforced at connect time** — auth uses the query
+  parameter / first message; not a full handshake check.
+
 ## Resolved
 - ~~PRIVATE GitHub repo did not exist / dir was not git-initialized~~ → resolved during
   harness bootstrap (2026-08-09): `git init` + private repo created + pushed.

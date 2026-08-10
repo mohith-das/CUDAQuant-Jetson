@@ -6,7 +6,6 @@ from cudaquant.config.settings import settings
 from cudaquant.experiments.engine import (
     ExperimentEngine,
     ExperimentOrigin,
-    ExperimentStatus,
 )
 
 router = APIRouter(prefix="/api/experiments", tags=["experiments"], dependencies=[Depends(require_auth)])
@@ -39,19 +38,21 @@ def grid_search(payload: dict):
 
 
 @router.get("/")
-def list_experiments(status: str | None = None, limit: int = 50):
-    """List experiments, optionally filtered by status."""
+def list_experiments(status: str | None = None, origin: str | None = None, limit: int = 50):
+    """List experiments, optionally filtered by status and/or origin."""
+    all_exps = _engine.list_all()
     if status:
         try:
+            from cudaquant.experiments.engine import ExperimentStatus
             st = ExperimentStatus(status)
-            exps = _engine.list_by_status(st)
+            all_exps = [e for e in all_exps if e.status == st]
         except ValueError as err:
             raise HTTPException(400, f"Invalid status: {status}") from err
-    else:
-        exps = _engine.list_all()
+    if origin:
+        all_exps = [e for e in all_exps if e.origin.value == origin]
     return [{"experiment_id": e.experiment_id, "hypothesis": e.hypothesis,
              "status": e.status.value, "origin": e.origin.value,
-             "created_at": e.created_at, "metrics": e.metrics} for e in exps[:limit]]
+              "created_at": e.created_at, "metrics": e.metrics} for e in all_exps[:limit]]
 
 
 @router.get("/{experiment_id}")

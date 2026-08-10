@@ -173,3 +173,98 @@ tool on a private LAN. The bearer token provides defense-in-depth — even if
 the firewall is misconfigured, the API is not anonymously accessible. The
 fail-closed startup check prevents the most dangerous misconfiguration (wide
 open on LAN with no auth).
+
+## ADR-0012 — APScheduler for in-process async scheduling
+**Date:** 2026-08-10 · **Status:** Accepted
+
+**Context:** Part 2 introduces scheduled jobs (ingest, retrain, evaluate,
+llm_analyze). The scheduler must live in the same FastAPI process on the
+Jetson (no separate infra), must integrate with the asyncio event loop, and
+must persist its configuration across restarts.
+
+**Decision:** Use **APScheduler** (`AsyncIOScheduler` + `IntervalTrigger`)
+inside `cudaquant/scheduler/service.py`. Job cadences, enabled flags, run
+history, and the auto-execute flag persist to DuckDB. The service exposes a
+REST surface (via `scheduler_routes.py`) for toggling jobs and running them
+immediately; the app wires real callbacks at startup.
+
+**Alternatives considered:**
+- **cron (system crontab):** rejected — separate process, no runtime
+  toggling, no result history, awkward to co-locate with the API and its
+  gates.
+- **Celery / Celery Beat:** rejected — needs a broker (Redis/RabbitMQ) and
+  worker processes; overkill and a memory/ops burden on an 8GB Jetson that
+  runs a single FastAPI process.
+- **Hand-rolled asyncio loop:** rejected — APScheduler provides interval
+  triggers, job tracking, and cleanup for free; a hand-rolled loop is more
+  code to get wrong.
+
+**Consequences:** Scheduler runs in-process, so a crash of the API also
+stops scheduling (acceptable for a research system). All jobs run in the
+same asyncio loop — callbacks must be non-blocking or short enough not to
+starve API responses.
+
+## ADR-0013 — Four independent execution gates (config, RiskGovernor, KillSwitch, SCHEDULER_AUTO_EXECUTE)
+**Date:** 2026-08-10 · **Status:** Accepted
+
+**Context:** `OrderService.submit_order()` enforces three gates for every
+order: (1) config (`TRADING_MODE`/`ENABLE_LIVE_TRADING`), (2)
+`RiskGovernor.pre_trade_check()`, (3) `KillSwitch`. Those gates protect a
+human/API-triggered submission path. Part 2 introduces the scheduler, which
+creates a second, autonomous path to the same actions (retrain, evaluate,
+and eventually execution) that runs **without a human in the loop** — a
+single "paper/live config OK" state is not enough to authorize unattended
+behavior.
+
+**Decision:** Add a **4th independent gate** owned by the scheduler layer:
+`SCHEDULER_AUTO_EXECUTE` (`SchedulerService.auto_execute_enabled`, persisted
+in DuckDB, default **False**), checked via `can_auto_execute()`. Enabling it
+requires an explicit confirm string on the API (`{"confirm": "ENABLE"}`).
+The scheduler is additionally **structurally incapable of promotion** — no
+`promote` method exists anywhere on the service, so no configuration of the
+scheduler can ever promote a challenger; that remains a human UI action.
+
+**Why a 4th gate is needed beyond OrderService's 3:** OrderService's gates
+verify that a single, already-requested submission is safe at the moment of
+submission. They say nothing about whether autonomous activity is permitted
+in the first place. The 4th gate is the "autonomy consent" switch: even if
+config, risk, and kill-switch all pass, the scheduler still must not act
+unless auto-execution was explicitly, durably enabled for this session.
+Separating the two keeps the manual path unchanged while making autonomous
+behavior opt-in by construction. The gate is currently enforced by the
+scheduler API and covered by tests; it is not yet consumed by any order path
+because no autonomous order submission exists yet.
+
+**Consequences:** Four gates must pass for any future autonomous order
+placement. Default state is fully locked down; enabling requires an explicit
+confirm and survives restart only if the operator re-enables it (persisted,
+but surfaced prominently in the scheduler UI state).
+
+## ADR-0014 — LLM as research agent, never trader
+**Date:** 2026-08-10 · **Status:** Accepted
+
+**Context:** The scheduler's `llm_analyze` job needs to produce research
+value (performance analysis, experiment hypotheses) without ever gaining the
+ability to place orders, change config, or promote models.
+
+**Decision:** Keep `LLMResearchAgent` strictly advisory:
+- Its outputs are **structured proposals** (`propose_experiment`) and text
+  analysis (`analyze_performance`); it has no method that touches
+  OrderService, RiskGovernor, KillSwitch, or ModelRegistry promotion.
+- The scheduler auto-enqueues proposals to **ExperimentEngine** via
+  `ExperimentEngine.propose(origin=ExperimentOrigin.LLM)` — the LLM produces
+  only a hypothesis string and reasoning summary; execution of experiments is
+  handled by the deterministic experiment runner.
+- All validation is deterministic: no LLM output is ever executed, parsed
+  into orders, or trusted as a safety decision. Without an API key the agent
+  falls back to local deterministic defaults.
+
+**Rationale:** The value of an LLM here is generating hypotheses faster than
+a human, not making safety-critical decisions. Pinning the LLM to
+proposal-only, with deterministic execution and validation downstream, keeps
+any hallucinated or adversarial output inside the research queue where it can
+only waste compute — never place trades or bypass gates.
+
+**Consequences:** No future change may give the LLM direct access to order
+submission or promotion. New LLM capabilities must go through
+ExperimentEngine proposals and the existing gate stack (see ADR-0013).
