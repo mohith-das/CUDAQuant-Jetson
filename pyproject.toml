@@ -89,7 +89,7 @@ dev = [
     "httpx>=0.25",
 ]
 llm = [
-    "openai>=1.10",
+    "openai>=1.0",
 ]
 docs = [
     "mkdocs>=1.5",
