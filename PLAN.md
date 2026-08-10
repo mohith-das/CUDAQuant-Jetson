@@ -11,14 +11,14 @@
 - [x] Repo git-initialized and pushed to PRIVATE GitHub
 - [x] Multi-agent smoke test (read-only + write) validated
 
-## Milestone 1 — Project scaffold (next; build with OpenCode, not Claude Code)
-- [ ] Python project scaffold (`cudaquant/` package, `pyproject.toml`/deps, `tests/`)
-- [ ] Config system + `.env.example` (secrets from env only)
-- [ ] FastAPI app shell with health/readiness (worker-backend)
-- [ ] Data schemas + synthetic data generator (worker-data)
-- [ ] Deterministic CPU backtester skeleton + determinism test (worker-quant, worker-tests)
-- [ ] Risk governor + kill switch interfaces, live-trading OFF by default (worker-quant)
-- [ ] CI-style local test target (`pytest`) green
+## Milestone 1 — Project scaffold ✅
+- [x] Python project scaffold (`cudaquant/` package, `pyproject.toml`/deps, `tests/`)
+- [x] Config system + `.env.example` (secrets from env only)
+- [x] FastAPI app shell with health/readiness (worker-backend)
+- [x] Data schemas + synthetic data generator (worker-data)
+- [x] Deterministic CPU backtester skeleton + determinism test (worker-quant, worker-tests)
+- [x] Risk governor + kill switch interfaces, live-trading OFF by default (worker-quant)
+- [x] CI-style local test target (`pytest`) green — 95/95 pass
 
 ## Milestone 2 — GPU acceleration
 - [ ] CUDA build setup for Jetson Orin (worker-cuda)
