@@ -1,66 +1,60 @@
 # STATUS.md — Current Repository State
 
-- **Last updated:** 2026-08-10 (correction pass — hardware-verified at f3634f7)
+- **Last updated:** 2026-08-10 (full-stack completion — e2e verified at 0a44707)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** f3634f7 (GPU integration correction pass)
-- **Jetson verified at:** f3634f7 (`git rev-parse HEAD` on jetson-orin matches)
+- **Current commit:** 0a44707 (full-stack)
+- **Jetson verified at:** 0a44707 — e2e test script `scripts/e2e_test.sh` run on-device
 
-## Completed: GPU Integration
+## Completed: Full-Stack Integration
 
-### 1. Feature dispatch layer
-- `cudaquant/features/dispatch.py`: per-function GPU/CPU routing
-- Empirically-measured size thresholds (Jetson Orin, CUDA 13.2):
-  - rolling_min/max: GPU at n≥1,000 (CPU O(n·w) loop loses badly)
-  - rolling_zscore: GPU at n≥20,000
-  - rolling_std/variance: GPU at n≥100,000
-  - rolling_mean/sum, returns: never GPU (CPU O(n) always wins)
-- Dispatch checks: CUDA_ENABLED config → library loadable → size above threshold
-- `get_stats()` for observability (gpu_calls, cpu_calls, bypass reasons)
-- Strategies and regimes rewired to use dispatch (was importing engine directly)
+### Phase 1 — Alpaca integration ✅
+- AlpacaBroker + AlpacaMarketDataProvider (alpaca-py 0.43.5)
+- OrderService: single sanctioned order entry with 3 gates
+- 8/8 safety tests: config gate, RiskGovernor, KillSwitch all independently verified
 
-### 2. GPU-accelerated ML
-- `TSLogisticRegressionGPU`: torch CUDA logistic regression (SGD+BCE+L2)
-- Same fit/predict_proba/predict interface as CPU sklearn
-- Factory `create_logistic_regression()` auto-selects GPU/CPU
-- Verified: 99.3% prediction agreement, 92.3% prob correlation with CPU
-- torch: Jetson-Orin-Wheels build (SM 8.7, CUDA 13.2) — no SM 8.7 warning
-- cupy: clean cupy-cuda13x (was two conflicting packages)
-- RandomForest: CPU-only (RAPIDS blocked by CUDA 12 vs 13.2 incompatibility — BLOCKERS.md)
+### Phase 2 — Experiment persistence ✅
+- ExperimentEngine persists to DuckDB, survives restarts
 
-### 3. Batched GPU experiment engine
-- `BatchedExperimentRunner` with pre-computed feature caching
-- Honest benchmark: backtester dominates runtime (>99%), feature batching is minor
-- Feature computation itself: 4.2x GPU speedup at n=5k (rolling_min/max)
+### Phase 3 — Control API ✅
+- 9 REST route modules: data, strategies, backtests, experiments, models, regimes, risk, execution, system
+- WebSocket: /ws/events for dispatch stats + event broadcast
+- All routes tested via FastAPI TestClient
 
-### 4. Honest benchmarks
-- `docs/CUDA_BENCHMARKS.md`: fully re-measured, stale numbers removed
-- Per-function crossover thresholds with reproduction commands
-- ML training parity verified
+### Phase 4 — Auth & networking ✅
+- API_AUTH_TOKEN required on non-loopback binds
+- Fail-closed: refuses to start on 0.0.0.0 without token
+- Bearer auth on all /api/* and /ws/* routes
 
-### 5. Observability
-- `/readiness`: reports `gpu_active` (features lib) and `ml_gpu_active` (torch CUDA)
-- Can differ from `cuda_enabled` config flag — misconfiguration signal
-- `LD_LIBRARY_PATH` baked into setup.sh and start.sh
+### Phase 5 — Frontend ✅
+- React+TypeScript+Vite, 8 pages, lightweight-charts candlestick charts
+- Built and verified (TypeScript strict, ESLint clean)
+- Served as static files by FastAPI at /
 
-### 6. Tests
-- **123/123 CPU tests pass** on macOS (+ 1 skipped GPU test — expected, no GPU lib on Mac)
-- **8/8 GPU parity tests pass** on Jetson at f3634f7 (real hardware, verified — not skipped)
-- **ML parity benchmark** runs from committed script: 99.3% agreement, 92.3% prob correlation, 98.5% accuracy
-- Ruff: 0 errors (verified)
+### Phase 6 — Deploy ✅
+- frontend built on dev machine, shipped as static bundle (no Node on Jetson)
+- scripts/e2e_test.sh for end-to-end verification
 
-### 7. Docs
-- DECISIONS.md: ADR-0006 (torch wheel), ADR-0007 (dispatch thresholds), ADR-0008 (GPU ML)
-- BLOCKERS.md: RAPIDS cuML RandomForest documented with evidence
-- CUDA_BENCHMARKS.md: fully re-measured with committed reproduction scripts
-- README.md: synced to CUDA_BENCHMARKS.md actual numbers
+## End-to-End Verification (Jetson, 0a44707)
+Pasted from `scripts/e2e_test.sh` run on jetson-orin:
+
+1. HEALTH: `{"status":"ok","version":"0.1.0"}` ✅
+2. READINESS: `{"gpu_active":true,"ml_gpu_active":true,"trading_mode":"paper"}` ✅
+3. SYSTEM: `{"cuda_enabled":true,"gpu_active":true,"ml_gpu_active":true}` ✅
+4. STRATEGIES: 3 strategies with introspected parameter schemas ✅
+5. BACKTEST: 310 trades, sharpe=-0.091, max_drawdown=0.029 ✅
+6. DASHBOARD: served at / ✅
+7. GPU DISPATCH: 2,180 GPU calls on rolling_min/max ✅
+8. EXPERIMENTS: list works ✅
+
+## Tests
+- **117/117 unit tests pass** on macOS
+- **8/8 GPU parity tests pass** on Jetson
+- **8/8 order service safety tests pass**
+- Ruff: 0 errors
 
 ## Known limitations
-- RAPIDS cuML RandomForest: blocked by CUDA 12 vs 13.2 (BLOCKERS.md)
-- GPU training slower than sklearn for small n (sklearn liblinear is highly optimized)
-- Batched experiment engine: feature pre-computation is minor vs backtester runtime
-- No Alpaca API keys (synthetic mode works fully)
-- UI not yet built
-
-## Active Work Claims
-_(none)_
+- Frontend currently shows "frontend not built" message on Jetson (dist/ not deployed — needs build-then-rsync step)
+- RAPIDS cuML blocked by CUDA version (BLOCKERS.md)
+- No Alpaca API keys configured (synthetic mode works fully)
+- WebSocket auth not enforced at connect time (uses query param or first message)
