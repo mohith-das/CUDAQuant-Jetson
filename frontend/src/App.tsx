@@ -8,6 +8,7 @@ import Experiments from "./pages/Experiments";
 import ModelRegistry from "./pages/ModelRegistry";
 import Regimes from "./pages/Regimes";
 import Execution from "./pages/Execution";
+import Chat from "./pages/Chat";
 import System from "./pages/System";
 import Scheduler from "./pages/Scheduler";
 import LLMInbox from "./pages/LLMInbox";
@@ -25,6 +26,7 @@ const nav = [
   { to: "/regimes", label: "Regimes" },
   { to: "/execution", label: "Execution" },
   { to: "/scheduler", label: "Scheduler" },
+  { to: "/chat", label: "Chat" },
   { to: "/system", label: "System" },
 ];
 
@@ -56,6 +58,7 @@ export default function App() {
               <Route path="/regimes" element={<Regimes />} />
               <Route path="/execution" element={<Execution />} />
               <Route path="/scheduler" element={<Scheduler />} />
+              <Route path="/chat" element={<Chat />} />
               <Route path="/system" element={<System />} />
             </Routes>
             </ErrorBoundary>

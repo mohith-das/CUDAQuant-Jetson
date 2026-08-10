@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from cudaquant.api.routes.backtest_routes import router as backtest_router
+from cudaquant.api.routes.chat_routes import router as chat_router
 from cudaquant.api.routes.data_routes import router as data_router
 from cudaquant.api.routes.experiment_routes import router as experiment_router
 from cudaquant.api.routes.health import health_router, readiness_router
@@ -102,6 +103,7 @@ app.include_router(exec_router)
 app.include_router(system_router)
 app.include_router(regime_router)
 app.include_router(sched_router)
+app.include_router(chat_router)
 
 # ── Static UI (served inline so SPA fallback works) ──────────────────────────
 frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"

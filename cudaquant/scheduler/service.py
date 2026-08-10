@@ -121,7 +121,8 @@ class SchedulerService:
         )
         job = self._scheduler.get_job(job_id)
         if job:
-            config.next_run = str(getattr(job, "next_run_time", None))
+            nt = getattr(job, "next_run_time", None)
+            config.next_run = str(nt) if nt else None
         logger.debug("Registered job: %s (every %ds)", name, config.interval_seconds)
 
     # ── Job execution ───────────────────────────────────────────────────────
