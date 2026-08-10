@@ -2,6 +2,45 @@
 
 > Terse, newest-first. One entry per meaningful handoff so any agent can pick up.
 
+## 2026-08-10 — Correction Pass 3 committed + crypto support in flight (docs pass)
+- **Correction Pass 3 (committed `9824782`):** ModelRegistry persistence fixed —
+  `db_path=settings.DUCKDB_PATH` at every call site (`app.py`, `model_routes.py`);
+  per-instance registries with no persistence were dropping models on restart.
+  ExperimentEngine now a shared singleton via `get_shared_engine(db_path)` so API
+  routes and scheduler callbacks share one DB-backed instance. 4th execution gate
+  **wired**: `SchedulerService.execute_champion_signal()` checks
+  `can_auto_execute()` (Gate 4) then `order_service.submit_order()` (Gates 1–3);
+  covered by `tests/unit/test_four_gate_chain.py`. `scripts/verify_cleanup.sh`
+  added (cancels open Alpaca orders, kills stray uvicorn). Settings gained
+  `BRAVE_SEARCH_API_KEY`/`TAVILY_API_KEY`/`FIRECRAWL_API_KEY` (config fields only —
+  pydantic `extra=forbidden` was rejecting .env values).
+- **Committed-state tests verified (clean env, HEAD 9824782):** **144 passed,
+  1 skipped** full suite (130 unit + 14 integration + GPU parity skip off-Jetson).
+  Ruff clean at HEAD.
+- **Crypto support — working tree, UNCOMMITTED (in-flight):**
+  `alpaca_crypto_provider.py` (CryptoHistoricalDataClient, "BTC/USD" pairs),
+  `qty int→float` in Order/Fill/Position (+ Bar.volume/Trade.size), GTC TIF for
+  "/" symbols in `alpaca_broker.py`. **Not committed**; tree was observed actively
+  churning during this pass (provider file appeared/disappeared between commands).
+  Caveats: `test_order_service_with_fractional_qty` currently FAILS in the working
+  tree (stale assertion expecting int-schema rejection; float schema now accepts
+  qty=0.0234); ruff 1 error (F841 unused `service`). Working-tree suite: 149
+  passed, 1 failed, 1 skipped.
+- **Search tools NOT built:** only the three API-key settings fields exist; no
+  Brave/Tavily/Firecrawl wrapper code anywhere in the repo.
+- **LLM_API_KEY:** placeholder in `.env` → effectively unset → LLMResearchAgent in
+  local fallback mode. Documented state, not a blocker (BLOCKERS.md).
+- **New env issue found:** local `.env` has `FMP_API_KEY`/`FINNHUB_API_KEY` not in
+  the Settings model → Settings() raises → pytest fails at collection from repo
+  root on this Mac. Working tree adds `extra="ignore"` to settings.py (uncommitted).
+  Docs describe both ADRs (ADR-0015 crypto provider, ADR-0016 fractional qty) as
+  Accepted-with-implementation-in-working-tree, not as committed.
+- **Docs updated:** STATUS.md (Correction Pass 3, crypto working-tree caveats,
+  honest test counts, known limitations), DECISIONS.md (ADR-0015, ADR-0016),
+  BLOCKERS.md (LLM/search/crypto/.env-drift documented state).
+- **Handoff:** next: commit the crypto work once the fractional-qty test is updated
+  to assert float acceptance, then sync + e2e on Jetson.
+
 ## 2026-08-10 — Part 1 correction pass + Part 2 scheduler/autonomy build
 - **Part 1 (committed `8079f68`):** fixed market-order crash in
   `order_service.py` (account/positions were read after ref-price construction

@@ -67,7 +67,7 @@ class OrderService:
             return False, "paper mode but ENABLE_LIVE_TRADING=True — inconsistent config", None
 
         # ── Gate 2: Risk Governor ────────────────────────────────────────
-        # Fetch account state first — needed for both ref_price and risk check
+        # Fetch account state once — needed for both ref_price and risk check
         try:
             account = self._broker.get_account()
             positions = self._broker.get_positions()
@@ -92,14 +92,6 @@ class OrderService:
             "price": ref_price,
         }
 
-        # Get current account state for exposure checks
-        try:
-            account = self._broker.get_account()
-            positions = self._broker.get_positions()
-        except Exception as e:
-            logger.error("Failed to get account state for risk check: %s", e)
-            return False, f"risk check failed: cannot get account state ({e})", None
-
         # Build position dict for governor
         pos_dict = {p.symbol: p.qty for p in positions}
         prices = {order.symbol: order.limit_price or 0.0}
@@ -123,7 +115,7 @@ class OrderService:
                 return False, "broker not connected", None
 
             order_id = self._broker.submit_order(order)
-            logger.info("Order submitted: id=%s symbol=%s side=%s qty=%d",
+            logger.info("Order submitted: id=%s symbol=%s side=%s qty=%s",
                          order_id, order.symbol, order.side.value, order.qty)
             return True, "order submitted", order_id
 

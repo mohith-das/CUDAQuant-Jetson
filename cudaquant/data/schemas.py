@@ -24,7 +24,7 @@ class Bar(BaseModel):
     high: float = Field(gt=0)
     low: float = Field(gt=0)
     close: float = Field(gt=0)
-    volume: int = Field(ge=0)
+    volume: float = Field(ge=0)
     frequency: BarFrequency
     vwap: float | None = None
     trade_count: int | None = None
@@ -36,7 +36,7 @@ class Trade(BaseModel):
     symbol: str
     timestamp: datetime
     price: float = Field(ge=0)
-    size: int = Field(ge=0)
+    size: float = Field(ge=0)
     exchange: str = ""
     conditions: list[str] | None = None
 
@@ -68,7 +68,7 @@ class Order(BaseModel):
     symbol: str
     side: OrderSide
     order_type: OrderType
-    qty: int = Field(gt=0)
+    qty: float = Field(gt=0)
     limit_price: float | None = Field(default=None, ge=0)
     time_in_force: str = "day"
 
@@ -79,7 +79,7 @@ class Fill(BaseModel):
     order_id: str
     symbol: str
     side: OrderSide
-    qty: int = Field(gt=0)
+    qty: float = Field(gt=0)
     price: float = Field(ge=0)
     timestamp: datetime
     commission: float = 0.0
@@ -89,7 +89,7 @@ class Position(BaseModel):
     """Current position in a symbol."""
 
     symbol: str
-    qty: int
+    qty: float
     avg_entry_price: float
     market_value: float | None = None
     unrealized_pnl: float | None = None

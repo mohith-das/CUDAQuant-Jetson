@@ -240,6 +240,36 @@ class TestOrderServiceGates:
         mock_broker.get_positions.assert_called()
         mock_broker.submit_order.assert_called_once()
 
+    def test_order_service_with_fractional_qty(
+        self, mock_broker, permissive_governor, monkeypatch,
+    ):
+        """Fractional qty (crypto-style 0.0234 BTC) submits successfully.
+
+        Order.qty is declared ``float`` in cudaquant.data.schemas, so
+        fractional-share / crypto order quantities pass the schema and flow
+        through all three gates to the broker unchanged.
+        """
+        monkeypatch.setattr("cudaquant.execution.order_service.settings",
+                            _make_settings(TRADING_MODE="paper", ENABLE_LIVE_TRADING=False))
+
+        ks = KillSwitch("/tmp/test_fractional_qty_ks")
+        ks.disengage()
+
+        order = Order(
+            symbol="BTC/USD",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            qty=0.0234,
+        )
+        service = OrderService(broker=mock_broker, governor=permissive_governor, kill_switch=ks)
+
+        ok, msg, order_id = service.submit_order(order)
+        assert ok, f"Expected success, got: {msg}"
+        assert order_id == "test-order-123"
+        mock_broker.submit_order.assert_called_once()
+        submitted = mock_broker.submit_order.call_args[0][0]
+        assert submitted.qty == 0.0234
+
 
 def _make_settings(**overrides):
     """Create a Settings-like object with given overrides."""

@@ -220,7 +220,7 @@ class RiskGovernor:
 
 def _position_qty(value) -> float | None:
     if isinstance(value, dict):
-        return value.get("qty")
+        value = value.get("qty")
     if value is None:
         return None
     return float(value)

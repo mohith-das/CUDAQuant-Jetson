@@ -14,15 +14,25 @@ dependencies. Listed here per the Part 2 handoff so nobody mistakes them for
 - **Live trading is OFF by default** — `ENABLE_LIVE_TRADING=False` everywhere;
   the app runs in `paper`/synthetic mode unless explicitly enabled. Scheduler
   auto-execute (`SCHEDULER_AUTO_EXECUTE`) is also OFF by default (ADR-0013).
-- **Part 2 has no frontend UI yet** — scheduler/autonomy pages and nav routes
-  are not built; the frontend still ships the original 8 pages. Scheduler
-  state is only reachable via the API (`/api/scheduler/*`).
+- **LLM_API_KEY is effectively unset (documented state, not a blocker)** — the
+  `.env` value is a placeholder, so `LLMResearchAgent` runs in local deterministic
+  fallback mode (no provider configured). The system is fully functional without
+  it; the LLM path simply produces default proposals/analyses.
+- **Search tool wrappers not built** — `BRAVE_SEARCH_API_KEY`, `TAVILY_API_KEY`,
+  `FIRECRAWL_API_KEY` settings fields exist (added in Correction Pass 3) but no
+  Brave/Tavily/Firecrawl client code exists yet. Settings fields are forward
+  declarations so pydantic `extra=forbidden` does not reject `.env` values.
+- **Crypto support uncommitted / in-flight** — crypto provider, fractional qty,
+  and GTC TIF exist only in the working tree (see STATUS.md); the fractional-qty
+  test currently fails there pending a stale-assertion update.
+- **Local `.env` drift (this Mac)** — `.env` contains `FMP_API_KEY` and
+  `FINNHUB_API_KEY`, which are not Settings model fields (pydantic
+  `extra=forbidden`), so `Settings()` raises and `pytest` fails at collection from
+  the repo root. Working tree adds `extra="ignore"`; until committed, run tests
+  with a clean env or remove those keys from `.env`.
 - **live-performance endpoint is a stand-in** — `GET /api/models/{id}/live-performance`
   returns a filled-order count from OrderService plus stored backtest metrics;
   it is not realized P&L tracking yet.
-- **4th execution gate not yet wired to an order path** — `can_auto_execute()`
-  is enforced by the scheduler API and covered by unit tests, but no
-  autonomous order submission path exists to consume it yet.
 - **WebSocket auth not enforced at connect time** — auth uses the query
   parameter / first message; not a full handshake check.
 

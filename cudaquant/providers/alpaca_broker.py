@@ -77,7 +77,7 @@ class AlpacaBroker(BrokerAdapter):
         for p in self._client.get_all_positions():
             positions.append(Position(
                 symbol=p.symbol,
-                qty=int(float(p.qty)),
+                qty=float(p.qty),
                 avg_entry_price=float(p.avg_entry_price),
                 market_value=float(p.market_value) if p.market_value else None,
                 unrealized_pnl=float(p.unrealized_pl) if p.unrealized_pl else None,
@@ -90,13 +90,15 @@ class AlpacaBroker(BrokerAdapter):
             raise RuntimeError("AlpacaBroker: not connected (no credentials)")
 
         side = AlpacaSide.BUY if order.side == OrderSide.BUY else AlpacaSide.SELL
+        # Crypto pairs ("BTC/USD") use GTC by default; equities use DAY.
+        time_in_force = TimeInForce.GTC if "/" in order.symbol else TimeInForce.DAY
 
         if order.order_type == OrderType.MARKET:
             req = MarketOrderRequest(
                 symbol=order.symbol,
                 qty=order.qty,
                 side=side,
-                time_in_force=TimeInForce.DAY,
+                time_in_force=time_in_force,
             )
         else:
             req = LimitOrderRequest(
@@ -104,7 +106,7 @@ class AlpacaBroker(BrokerAdapter):
                 qty=order.qty,
                 side=side,
                 limit_price=order.limit_price or 0.0,
-                time_in_force=TimeInForce.DAY,
+                time_in_force=time_in_force,
             )
 
         result = self._client.submit_order(req)
@@ -118,8 +120,8 @@ class AlpacaBroker(BrokerAdapter):
             "id": str(o.id),
             "symbol": o.symbol,
             "side": str(o.side),
-            "qty": str(o.qty) if o.qty else "0",
-            "filled_qty": str(o.filled_qty) if o.filled_qty else "0",
+            "qty": str(float(o.qty)) if o.qty else "0",
+            "filled_qty": str(float(o.filled_qty)) if o.filled_qty else "0",
             "status": str(o.status),
             "type": str(o.type),
             "limit_price": str(o.limit_price) if o.limit_price else None,
@@ -137,8 +139,8 @@ class AlpacaBroker(BrokerAdapter):
                 "id": str(o.id),
                 "symbol": o.symbol,
                 "side": str(o.side),
-                "qty": str(o.qty) if o.qty else "0",
-                "filled_qty": str(o.filled_qty) if o.filled_qty else "0",
+                "qty": str(float(o.qty)) if o.qty else "0",
+                "filled_qty": str(float(o.filled_qty)) if o.filled_qty else "0",
                 "status": str(o.status),
                 "submitted_at": str(o.submitted_at) if o.submitted_at else None,
             }

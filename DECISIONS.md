@@ -268,3 +268,56 @@ only waste compute — never place trades or bypass gates.
 **Consequences:** No future change may give the LLM direct access to order
 submission or promotion. New LLM capabilities must go through
 ExperimentEngine proposals and the existing gate stack (see ADR-0013).
+
+## ADR-0015 — AlpacaCryptoMarketDataProvider via CryptoHistoricalDataClient
+**Date:** 2026-08-10 · **Status:** Accepted (implementation in working tree, uncommitted)
+
+**Context:** Crypto assets are quoted in pair format ("BTC/USD", "ETH/USD") and
+behave differently from equities (24/7 trading, fractional base quantities,
+different TIF defaults). Reusing the stock `AlpacaMarketDataProvider` for crypto
+would force symbol-format hacks and conflate two data models.
+
+**Decision:** Add a separate `AlpacaCryptoMarketDataProvider` in
+`cudaquant/providers/alpaca_crypto_provider.py` that uses the alpaca-py
+**`CryptoHistoricalDataClient`** / `CryptoBarsRequest` directly, keeping the stock
+`AlpacaMarketDataProvider` (`StockHistoricalDataClient`) untouched. It implements
+the same `MarketDataProvider` ABC, uses crypto-pair symbol format ("BTC/USD"), and
+is registered alongside the stock provider. Broker-side, order TIF is selected per
+symbol: `TimeInForce.GTC` when the symbol contains "/" (crypto), else
+`TimeInForce.DAY` (equities).
+
+**Rationale:** Clean separation — the two providers map to two distinct alpaca-py
+clients with different request types and symbol conventions. Keeping them separate
+avoids conditional branches in the stock provider and matches alpaca-py's own API
+split. Distinct TIF defaults reflect that crypto trades 24/7 (DAY TIF would expire
+unfilled overnight).
+
+**Consequences:** Providers must be selected by asset class at call sites. The
+crypto provider is implemented in the working tree but **not yet committed** — see
+STATUS.md "Crypto support — working tree". Validation that crypto pair symbols
+reach the right provider is pending.
+
+## ADR-0016 — Fractional quantities (float qty) for crypto support
+**Date:** 2026-08-10 · **Status:** Accepted (implementation in working tree, uncommitted)
+
+**Context:** Crypto quantities are fractional (e.g. 0.0234 BTC), unlike whole-share
+equities. The `Order`/`Fill`/`Position`/`Trade` schemas declared `qty: int`, which
+rejected fractional crypto quantities at pydantic validation — this was previously
+tracked as the "fractional qty" crypto blocker.
+
+**Decision:** Change `qty` from `int` to `float` in the `Order`, `Fill`, and
+`Position` schemas (and `size`/`volume` in `Trade`/`Bar`) so fractional crypto
+quantities validate end-to-end. Integer quantities remain valid (float accepts
+them), so the equities path is unaffected. RiskGovernor already treats qty as
+float internally (`float(order.get("qty", 0.0))`).
+
+**Rationale:** One schema type that admits both whole-share and fractional orders is
+simpler than a discriminated union or a separate crypto order type; float qty is a
+superset of int qty. The earlier blocker test (`test_order_service_with_fractional_qty`)
+asserted the old int-schema rejection and is now **stale/failing** until updated to
+assert acceptance instead.
+
+**Consequences:** The schema change is in the working tree, **not yet committed**.
+The stale fractional-qty test must be updated (it currently fails) and the
+int→float migration re-verified (float32 rounding on very small fractions is a
+known numeric consideration). See STATUS.md for the current working-tree state.
