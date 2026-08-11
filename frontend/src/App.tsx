@@ -10,7 +10,7 @@ import Regimes from "./pages/Regimes";
 import Execution from "./pages/Execution";
 import Chat from "./pages/Chat";
 import System from "./pages/System";
-import Settings from "./pages/Settings";
+import Welcome from "./pages/Welcome";
 import Scheduler from "./pages/Scheduler";
 import LLMInbox from "./pages/LLMInbox";
 import ModelComparison from "./pages/ModelComparison";
@@ -61,6 +61,7 @@ export default function App() {
               <Route path="/execution" element={<Execution />} />
               <Route path="/scheduler" element={<Scheduler />} />
               <Route path="/chat" element={<Chat />} />
+              <Route path="/welcome" element={<Welcome />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/system" element={<System />} />
             </Routes>
