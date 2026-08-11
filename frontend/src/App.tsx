@@ -11,6 +11,7 @@ import Execution from "./pages/Execution";
 import Chat from "./pages/Chat";
 import System from "./pages/System";
 import Welcome from "./pages/Welcome";
+import Settings from "./pages/Settings";
 import Scheduler from "./pages/Scheduler";
 import LLMInbox from "./pages/LLMInbox";
 import ModelComparison from "./pages/ModelComparison";
