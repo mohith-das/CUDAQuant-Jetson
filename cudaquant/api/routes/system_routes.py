@@ -39,7 +39,18 @@ def system_info():
         "cuda_enabled": settings.CUDA_ENABLED,
         "gpu_active": gpu.get("gpu_active", False),
         "ml_gpu_active": gpu.get("ml_gpu_active", False),
+        "mcp_installed": _check_mcp_installed(),
+        "telegram_configured": bool(settings.TELEGRAM_BOT_TOKEN and settings.TELEGRAM_CHAT_ID),
     }
+
+
+def _check_mcp_installed() -> bool:
+    """Check if mcp package is actually installed."""
+    try:
+        import mcp  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 
 @system_router.get("/dispatch-stats")
