@@ -8,10 +8,6 @@ kill switch disengage — these are human-UI-only.
 
 from datetime import datetime, timedelta, timezone
 
-# Shared OrderService — reuse the singleton from risk_routes, never construct fresh.
-# This ensures RiskGovernor state (daily trade count, daily P&L) accumulates
-# across all call sites — API, platform tools, MCP, and chat.
-from cudaquant.api.routes.risk_routes import _order_service as _shared_order_service
 from cudaquant.backtest.engine import DeterministicBacktester
 from cudaquant.config.settings import settings
 from cudaquant.data.schemas import BarFrequency, Order, OrderSide, OrderType
@@ -35,6 +31,11 @@ STRATEGY_REGISTRY = {
     "mean_reversion": MeanReversion,
     "pairs_relative_value": PairsRelativeValue,
 }
+
+# Lazy import — avoids circular dependency with api/routes/risk_routes
+def _get_shared_order_service():
+    from cudaquant.api.routes.risk_routes import _order_service
+    return _order_service
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -105,7 +106,7 @@ def get_model_live_performance(model_id: str) -> dict:
     m = reg.get(model_id)
     if not m:
         return {"error": "model not found"}
-    svc = _shared_order_service
+    svc = _get_shared_order_service()
     orders = svc.list_orders(status="closed", limit=100)
     filled = [o for o in orders if o.get("status") == "filled"]
     return {"model_id": model_id, "status": m.status.value,
@@ -151,7 +152,7 @@ def get_dispatch_stats_tool() -> dict:
 
 
 def get_account() -> dict:
-    svc = _shared_order_service
+    svc = _get_shared_order_service()
     try:
         acct = svc.get_account()
         return {"cash": acct.cash, "portfolio_value": acct.portfolio_value,
@@ -161,13 +162,13 @@ def get_account() -> dict:
 
 
 def get_positions() -> list[dict]:
-    svc = _shared_order_service
+    svc = _get_shared_order_service()
     return [{"symbol": p.symbol, "qty": p.qty, "market_value": p.market_value,
              "unrealized_pnl": p.unrealized_pnl} for p in svc.get_positions()]
 
 
 def get_order_history(limit: int = 50) -> list[dict]:
-    svc = _shared_order_service
+    svc = _get_shared_order_service()
     return svc.list_orders(limit=limit)
 
 
@@ -230,7 +231,7 @@ def submit_paper_order(symbol: str, side: str, qty: float,
     if settings.live_trading_enabled:
         return {"success": False, "message": "paper mode with ENABLE_LIVE_TRADING=True — inconsistent"}
 
-    svc = _shared_order_service
+    svc = _get_shared_order_service()
 
     try:
         order = Order(
@@ -255,7 +256,7 @@ def engage_kill_switch(confirm: str, reason: str = "mcp") -> dict:
     """
     if confirm != "STOP":
         return {"success": False, "message": "Must include confirm='STOP' to engage kill switch"}
-    svc = _shared_order_service
+    svc = _get_shared_order_service()
     svc.engage_kill_switch(reason=reason)
     return {"success": True, "message": "kill switch engaged"}
 
