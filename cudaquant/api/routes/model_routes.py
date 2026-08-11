@@ -76,6 +76,7 @@ def live_performance(model_id: str):
         "status": m.status.value,
         "promoted_at": m.promoted_at,
         "filled_orders": len([o for o in orders if o.get("status") == "filled"]),
+        "note": "filled_orders is order count only — full P&L tracking not yet implemented",
         "backtest_sharpe": m.metrics.get("sharpe"),
         "backtest_max_drawdown": m.metrics.get("max_drawdown"),
     }

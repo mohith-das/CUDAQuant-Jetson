@@ -46,10 +46,7 @@ async def test_mcp_read_tool_works():
         # structuredContent (camelCase) is the reliable field on this SDK;
         # handle both snake/camel for compat across versions.
         sc = getattr(result, "structuredContent", getattr(result, "structured_content", None))
-        if sc is not None:
-            data = sc.get("result", sc)
-        else:
-            data = json.loads(result.content[0].text)
+        data = sc.get("result", sc) if sc is not None else json.loads(result.content[0].text)
         assert isinstance(data, list), f"Expected list, got {type(data)}"
 
 
