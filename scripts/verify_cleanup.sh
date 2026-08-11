@@ -8,15 +8,23 @@ cd "$SCRIPT_DIR/.."
 
 echo "=== CUDAQuant Cleanup ==="
 
-# Kill stray uvicorn processes — but skip the real production server
-# if it's bound to the configured HOST:PORT in .env or env vars.
+# Kill stray uvicorn processes — but skip the real production server.
+# The real server runs via infisical → uvicorn; protect both the child
+# (uvicorn, holds the listening socket) AND the parent (infisical wrapper).
 REAL_PORT="${PORT:-8000}"
 STRAY=""
 for pid in $(ps aux | grep '[u]vicorn.*cudaquant' | awk '{print $2}'); do
-    # Check if this process is listening on the real port
     LISTENING=$(ss -tlnp 2>/dev/null | grep ":$REAL_PORT " | grep "$pid" || true)
     if [ -n "$LISTENING" ]; then
-        echo "Skipping production server PID=$pid (listening on port $REAL_PORT)"
+        echo "Skipping production uvicorn PID=$pid (listening on port $REAL_PORT)"
+        # Also protect its parent (infisical wrapper)
+        PPID=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+        if [ -n "$PPID" ] && [ "$PPID" -gt 1 ]; then
+            PNAME=$(ps -o comm= -p "$PPID" 2>/dev/null | tr -d ' ')
+            if echo "$PNAME" | grep -qi "infisical"; then
+                echo "Skipping production infisical wrapper PID=$PPID"
+            fi
+        fi
     else
         STRAY="$STRAY $pid"
     fi

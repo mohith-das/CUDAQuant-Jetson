@@ -117,6 +117,19 @@ class OrderService:
             order_id = self._broker.submit_order(order)
             logger.info("Order submitted: id=%s symbol=%s side=%s qty=%s",
                          order_id, order.symbol, order.side.value, order.qty)
+
+            # Record the fill for daily risk-limit tracking.
+            # Uses ref_price for notional estimation; real P&L from broker fills
+            # would replace this estimate in a live system.
+            self._governor.record_fill({
+                "symbol": order.symbol,
+                "side": order.side.value,
+                "qty": order.qty,
+                "price": ref_price,
+                "pnl": 0.0,  # Real P&L requires broker fill confirmation — placeholder
+                "order_id": order_id,
+            })
+
             return True, "order submitted", order_id
 
         except Exception as e:
