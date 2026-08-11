@@ -41,14 +41,13 @@ async def test_mcp_read_tool_works():
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
         result = await session.call_tool("list_models", {})
-        assert not result.is_error, f"Tool call errored: {result}"
-        # structured_content is the reliable, complete field for typed
-        # results on this SDK — for a list return value it emits ONE
-        # content block PER ITEM (content[0] alone is only the first
-        # element, not the whole list), so structured_content must be
-        # preferred, not used as an empty-list-only fallback.
-        if result.structured_content is not None:
-            data = result.structured_content.get("result", result.structured_content)
+        is_err = getattr(result, "isError", getattr(result, "is_error", False))
+        assert not is_err, f"Tool call errored: {result}"
+        # structuredContent (camelCase) is the reliable field on this SDK;
+        # handle both snake/camel for compat across versions.
+        sc = getattr(result, "structuredContent", getattr(result, "structured_content", None))
+        if sc is not None:
+            data = sc.get("result", sc)
         else:
             data = json.loads(result.content[0].text)
         assert isinstance(data, list), f"Expected list, got {type(data)}"
