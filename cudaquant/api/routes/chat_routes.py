@@ -133,19 +133,49 @@ async def chat(payload: dict):
         choice = response.choices[0]
         content = choice.message.content or ""
 
-        # If the LLM requested tool calls, execute them
-        tool_results = []
+        # If the LLM requested tool calls, execute them and send results back
         if choice.message.tool_calls:
+            tool_results = []
+            # Add the assistant's tool-call request to the conversation
+            conversation.append({
+                "role": "assistant",
+                "content": choice.message.content or "",
+                "tool_calls": [
+                    {"id": tc.id, "type": "function",
+                     "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                    for tc in choice.message.tool_calls
+                ],
+            })
+            # Execute tools
             for tc in choice.message.tool_calls:
                 fn_name = tc.function.name
                 fn = READ_TOOLS.get(fn_name)
+                result_str = json.dumps({"error": f"unknown tool: {fn_name}"})
                 if fn:
                     try:
                         args = json.loads(tc.function.arguments) if tc.function.arguments else {}
-                        result = fn(**args)
-                        tool_results.append({"tool": fn_name, "result": result})
+                        result_str = json.dumps(fn(**args), default=str)
                     except Exception as e:
-                        tool_results.append({"tool": fn_name, "error": str(e)})
+                        result_str = json.dumps({"error": str(e)})
+                tool_results.append({"tool": fn_name, "result": json.loads(result_str)})
+                # Add tool result to conversation
+                conversation.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": result_str,
+                })
+
+            # Second LLM call — synthesize response from tool results
+            response2 = client.chat.completions.create(
+                model=settings.LLM_MODEL,
+                messages=conversation,
+                max_tokens=800,
+                temperature=0.3,
+            )
+            content = response2.choices[0].message.content or ""
+        else:
+            content = choice.message.content or ""
+            tool_results = []
 
         return {
             "content": content,

@@ -8,6 +8,10 @@ kill switch disengage — these are human-UI-only.
 
 from datetime import datetime, timedelta, timezone
 
+# Shared OrderService — reuse the singleton from risk_routes, never construct fresh.
+# This ensures RiskGovernor state (daily trade count, daily P&L) accumulates
+# across all call sites — API, platform tools, MCP, and chat.
+from cudaquant.api.routes.risk_routes import _order_service as _shared_order_service
 from cudaquant.backtest.engine import DeterministicBacktester
 from cudaquant.config.settings import settings
 from cudaquant.data.schemas import BarFrequency, Order, OrderSide, OrderType
@@ -97,12 +101,11 @@ def get_model(model_id: str) -> dict | None:
 
 def get_model_live_performance(model_id: str) -> dict:
     """Realized performance indicators for a model."""
-    from cudaquant.execution.order_service import OrderService
     reg = get_shared_registry(settings.DUCKDB_PATH)
     m = reg.get(model_id)
     if not m:
         return {"error": "model not found"}
-    svc = OrderService()
+    svc = _shared_order_service
     orders = svc.list_orders(status="closed", limit=100)
     filled = [o for o in orders if o.get("status") == "filled"]
     return {"model_id": model_id, "status": m.status.value,
@@ -148,8 +151,7 @@ def get_dispatch_stats_tool() -> dict:
 
 
 def get_account() -> dict:
-    from cudaquant.execution.order_service import OrderService
-    svc = OrderService()
+    svc = _shared_order_service
     try:
         acct = svc.get_account()
         return {"cash": acct.cash, "portfolio_value": acct.portfolio_value,
@@ -159,15 +161,13 @@ def get_account() -> dict:
 
 
 def get_positions() -> list[dict]:
-    from cudaquant.execution.order_service import OrderService
-    svc = OrderService()
+    svc = _shared_order_service
     return [{"symbol": p.symbol, "qty": p.qty, "market_value": p.market_value,
              "unrealized_pnl": p.unrealized_pnl} for p in svc.get_positions()]
 
 
 def get_order_history(limit: int = 50) -> list[dict]:
-    from cudaquant.execution.order_service import OrderService
-    svc = OrderService()
+    svc = _shared_order_service
     return svc.list_orders(limit=limit)
 
 
@@ -230,8 +230,7 @@ def submit_paper_order(symbol: str, side: str, qty: float,
     if settings.live_trading_enabled:
         return {"success": False, "message": "paper mode with ENABLE_LIVE_TRADING=True — inconsistent"}
 
-    from cudaquant.execution.order_service import OrderService
-    svc = OrderService()
+    svc = _shared_order_service
 
     try:
         order = Order(
@@ -246,6 +245,19 @@ def submit_paper_order(symbol: str, side: str, qty: float,
 
     ok, msg, order_id = svc.submit_order(order)
     return {"success": ok, "message": msg, "order_id": order_id}
+
+
+def engage_kill_switch(confirm: str, reason: str = "mcp") -> dict:
+    """Engage the kill switch. Requires confirm='STOP' exactly.
+
+    Safety: this is the ONLY write tool for kill switch — disengage is
+    human-UI-only and NOT exposed here.
+    """
+    if confirm != "STOP":
+        return {"success": False, "message": "Must include confirm='STOP' to engage kill switch"}
+    svc = _shared_order_service
+    svc.engage_kill_switch(reason=reason)
+    return {"success": True, "message": "kill switch engaged"}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -274,4 +286,5 @@ WRITE_TOOLS: dict[str, callable] = {
     "retire_model": retire_model,
     "run_scheduler_job_now": run_scheduler_job_now,
     "submit_paper_order": submit_paper_order,
+    "engage_kill_switch": engage_kill_switch,
 }

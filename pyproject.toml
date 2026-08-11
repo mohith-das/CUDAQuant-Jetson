@@ -91,6 +91,9 @@ dev = [
 llm = [
     "openai>=1.0",
 ]
+mcp = [
+    "mcp>=1.0",
+]
 docs = [
     "mkdocs>=1.5",
     "mkdocs-material>=9.5",
