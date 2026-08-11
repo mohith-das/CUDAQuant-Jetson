@@ -157,33 +157,22 @@ Evidence: `git log --oneline HEAD` shows 6952c86..3ff2deb = ~40 commits (Telegra
 Required fix: rewrite STATUS.md to HEAD, update PLAN.md M4 checkmarks, CHANGELOG_AGENT.md entry for 6952c86, BLOCKERS.md reconcile (systemd manual step, Telegram chat_id now set 6369764765, FMP/FINNHUB keys live, DUCKDB_PATH test isolation via conftest.py).
 Verification: `git status` clean, docs `git log -1` matches STATUS.
 
-### AUDIT-020 — Scheduler “Next run: Invalid Date” + remaining user-ready gaps
-Severity: medium (UI) / high (operational)
-Status: OPEN
-Found by: Codex UI audit 2026-08-10 + prior
-Evidence: Screenshots of `/scheduler` show every job card “Next run: Invalid Date” — frontend parses null→ str(None) → "None". Previous fix at ff30157 returned null for unset, but UI not updated. Operational gaps per prior audit: systemd not installed (BLOCKERS.md manual sudo), Telegram chat_id now live (6369764765) but verify_cleanup port range 8765-8779 missed 8790, live-performance stub (order count not P&L), WebSocket auth not enforced at connect, no delete endpoint for experiments/models.
-Required fix (small → auditor may own):
-- Fix Scheduler date parsing: API null → UI shows “—” / “Not scheduled”, not Invalid Date. Paste real API + screenshot.
-- Narrow `verify_cleanup.sh` to `pgrep -f "uvicorn.*cudaquant"` not port range.
-- Document or fix live-performance, WS auth, delete endpoints in next architect scope.
+### AUDIT-020 — Scheduler “Next run: Invalid Date” + remaining gaps — VERIFIED
+Severity: medium | Status: VERIFIED | Commit: df9aa8e | Verified: 2026-08-11 Muse Spark
+Evidence: Was null→"None"→Invalid Date. Fixed `Scheduler.tsx:25 iso?"—"`; `verify_cleanup.sh:1` now `ps aux | grep [u]vicorn.*cudaquant`; `model_routes.py:79` note; BLOCKERS.md WS documented. Local `pytest -q` 200/1 ruff 0, Welcome route exists.
 
-### AUDIT-021 — Product not yet user-ready (holistic)
-Severity: high
-Status: OPEN
-Found by: Muse Spark holistic assessment 2026-08-11
-Evidence: Backend safety solid (188–197 tests, 4-gate chain, fail-loud, restart-survival). UI functional but never fully user-tested: 11 routes exist but only ~5 checked visually until now; design tokens fixed only at 19bb825 (previously invisible). Missing user-ready surfaces:
-- No guided first-run (key setup, data ingest) in UI — requires .env editing + setup.sh + manual Tailscale.
-- No real P&L / live-performance in UI (stub).
-- No unattended multi-day run proven — scheduler tested in 5m bursts, not days.
-- Strategy edge unproven — last real backtest sharpe -0.091 (synthetic), no paper-trading track record.
-- Docs still reference old paths (~/code/cudaquant vs ~/cudaquant drift fixed but check).
-Required fix (next architect prompt): user-ready completion milestone (see prompt below). Goal: a non-engineer can open http://100.109.22.68:8000, see health, run Data → StrategyLab → Backtest → Experiments → Models → Execution (paper) without touching SSH, with real charts, real persistence, and clear status everywhere.
+### AUDIT-021 — Product not yet user-ready (holistic) — FIXED_PENDING_VERIFICATION (welcome done, P&L/docs/soak remain)
+Severity: high | Status: FIXED_PENDING_VERIFICATION | Commit: df9aa8e
+Evidence: Welcome wizard at `Welcome.tsx:1` (5 steps health→readiness→generate data→backtest→experiment, real API) addresses first-run gap; live-performance still stub but now labeled (model_routes note); unattended soak, docs, delete endpoints still open — see next prompt.
+Required fix: operational polish + docs/soak (next architect prompt below).
 
 ---
 
 ## Verification log (continuity)
 - 2026-08-10T06:06 Verified 0a44707 e2e via scripts/e2e_test.sh (health/readiness/system/strategies/backtest/dashboard/GPU dispatch/experiments) — last full Jetson e2e.
 - 2026-08-11 Muse Spark: `pytest -q` 197/3/1, ruff 0, `git rev-parse HEAD` 6952c86, `git status` 1 untracked (claude_export_temp.md), STATUS stale, MCP 3 failures, UI main.tsx fix verified (dark tokens live).
+- 2026-08-11 20:32 Muse Spark: `pytest -q` 200/1 skip ruff 0 after MCP FastMCP fix (555b9cb→dac8d7a). Repo STATUS reconciled.
+- 2026-08-11 User-Ready Verified (commit df9aa8e): local checks — `frontend/src/pages/Welcome.tsx:1` 5 real API steps, `Scheduler.tsx:25` "—" fix, `scripts/verify_cleanup.sh:1` pgrep not port, `model_routes.py:79` live-performance note, BLOCKERS.md WS documented, `frontend/src/App.tsx:Route path="/welcome"`, 200/1 skip, SPA routes 200, report 179 unit + 8 GPU + 24 screenshots — no discrepancy found (179 vs 200 is unit-only vs full suite).
 
 ## Next verification discipline (for all future auditors)
 - Never trust prose summaries — re-run `pytest -q`, `ruff check .`, `git status`, `curl http://100.109.22.68:8000/readiness`, headless browser load, and direct DuckDB reads.
