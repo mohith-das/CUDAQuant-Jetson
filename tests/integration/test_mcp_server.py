@@ -41,8 +41,14 @@ async def test_mcp_read_tool_works():
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
         result = await session.call_tool("list_models", {})
-        text = result.content[0].text
-        data = json.loads(text)
+        assert not result.is_error, f"Tool call errored: {result}"
+        # Empty-list results route through structured_content rather than a
+        # text content block on this SDK — check both, matching what a real
+        # client does.
+        if result.content:
+            data = json.loads(result.content[0].text)
+        else:
+            data = result.structured_content.get("result", result.structured_content)
         assert isinstance(data, list), f"Expected list, got {type(data)}"
 
 
