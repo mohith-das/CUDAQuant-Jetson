@@ -1,206 +1,49 @@
 # STATUS.md — Current Repository State
 
-- **Last updated:** 2026-08-10 (Telegram alerting wired in working tree; crypto + LLM tool/provider work also in flight)
+- **Last updated:** 2026-08-11 (Muse Spark audit, MCP fix)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** 3ff2deb (Fix ModelRegistry persistence: add missing _load_all() call)
-- **Working tree:** NOT clean — multiple agents' uncommitted work in flight (crypto support, LLM tools/providers, Telegram alerting, fmp/finnhub providers). The tree was observed actively churning during the docs pass; treat its state as in-flight.
-- **Jetson verified at:** 0a44707 — e2e test script `scripts/e2e_test.sh` run on-device
-  (everything after that commit is NOT yet synced to Jetson)
+- **Current commit:** 555b9cb (MCP FastMCP fix + audit reconciliation)
+- **Prior verified HEAD:** 6952c86 (Telegram interactive bot + design pass, screenshots)
+- **Working tree:** clean (after 555b9cb); `docs/claude_export_temp.md` untracked export only
+- **Jetson verified at:** 0a44707 (scripts/e2e_test.sh) — commits after 0a44707 NOT yet synced or e2e-verified on-device
+- **Local tests:** 200 passed, 1 skipped (1 GPU parity skip off-Jetson), ruff 0 — `pytest -q` 2026-08-11 on macOS 3.12.12
+- **MCP:** 3/3 integration tests now pass after FastMCP fix (was 3 failures at 6952c86)
 
-## Telegram alerting — working tree ⏳ (UNCOMMITTED)
-- **`cudaquant/alerts/telegram.py`** — `TelegramAlerter`, a minimal Telegram bot client
-  over `httpx` (already a dependency). Reads `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`
-  from settings; **degrades gracefully**: if either is unset (the default) `send()` returns
-  `False` with no network call; non-200 responses and network exceptions also return `False`
-  (never raises). Message text is HTML-escaped before posting (`parse_mode=HTML`) so dynamic
-  content (reasons, errors, model ids) cannot break the request.
-- **Settings:** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` added to `Settings` (both default
-  `None`); `.env.example` documents both (commented, with BotFather/getUpdates instructions).
-- **Wired at three trigger points** — fire-and-forget calls appended at the end of the
-  existing path, no try/except wrapping of existing logic:
-  - Kill-switch trip → `api/routes/risk_routes.py::engage_kill_switch`
-  - Scheduler job exception → `scheduler/service.py::_run_job` except block
-  - Challenger ready for review → `ml/registry.py::promote_to_challenger` (success only)
-- **Tests:** `tests/unit/test_telegram_alerts.py` (7 tests) — graceful skip without
-  chat_id/token, correct outbound payload, HTML escaping, non-200 → False, network
-  exception → False. `tests/unit/test_config.py` gained telegram default/env tests and
-  both keys in the hermetic clean-env list (plus the previously-missing
-  BRAVE/TAVILY/FIRECRAWL keys).
-- **Repair of a pre-existing in-flight bug:** the uncommitted `get_shared_registry`
-  insertion in `ml/registry.py` had left `_load_all` indented inside the function (dead
-  code after `return`), so `ModelRegistry(db_path=...)` raised `AttributeError` and
-  `import cudaquant.api` failed. Restored `_load_all` as a class method (see
-  CHANGELOG_AGENT.md).
-- **Decision:** DECISIONS.md ADR-0017.
+## What is DONE and verified (local)
 
-## Correction Pass 3 — committed 9824782 ✅
-- **ModelRegistry persistence fixed:** `ModelRegistry(db_path=...)` now receives
-  `settings.DUCKDB_PATH` at every call site (`app.py`, `model_routes.py`). Previously the
-  API routes and scheduler callback created per-instance registries with no persistence —
-  models vanished on restart.
-- **ExperimentEngine shared singleton:** new `get_shared_engine(db_path)` in
-  `experiments/engine.py`; API routes and scheduler callbacks now share one DB-backed
-  instance instead of separate instances that couldn't see each other's data.
-- **4th execution gate wired:** new `SchedulerService.execute_champion_signal()`
-  (`scheduler/service.py`) runs the full gate chain — Gate 4 (`can_auto_execute()`,
-  `SCHEDULER_AUTO_EXECUTE`, default False) first, then Gates 1–3 via
-  `order_service.submit_order()` (config, RiskGovernor, KillSwitch). Covered by
-  `tests/unit/test_four_gate_chain.py`.
-- **`scripts/verify_cleanup.sh` added:** cancels all open Alpaca paper orders and kills
-  stray uvicorn processes on test ports. Run at start/end of every verification round.
-- **Settings gained `BRAVE_SEARCH_API_KEY`, `TAVILY_API_KEY`, `FIRECRAWL_API_KEY`**
-  (config/settings.py) — pydantic `extra=forbidden` was rejecting `.env` values for
-  not-yet-declared providers. These are **config fields only**; no search-tool wrapper
-  code exists yet (see Known limitations).
-- **Tests at this commit:** 144 passed, 1 skipped (full suite, clean env) — 130 unit +
-  14 integration + 1 GPU-parity skip off-Jetson. Ruff clean at commit.
+- **M0-M3** scaffold, 22 CPU features, 3 CUDA kernels, strategies, walk-forward, ML, registry, regimes, experiments, risk/kill-switch — all persistent via DuckDB with shared singletons (ExperimentEngine, ModelRegistry, LLMResearchAgent via get_shared_*)
+- **GPU dispatch** — thresholds min/max≥1k, zscore≥20k, std/var≥100k, mean/sum/returns never GPU; /readiness shows gpu_active vs cuda_enabled (ADR-0007, docs/CUDA_BENCHMARKS.md re-measured)
+- **Torch** — Shattered217 wheel for SM 8.7/CUDA 13.2, single cupy-cuda13x (ADR-0006); RAPIDS cuML blocked (BLOCKERS.md)
+- **Alpaca** — market data + broker (alpaca-py 0.43.5), crypto provider (BTC/USD pairs), float qty, GTC for crypto (ADR-0015/0016)
+- **Order execution** — 4-gate chain (config→RiskGovernor→KillSwitch→SCHEDULER_AUTO_EXECUTE), paper-only default, kill-switch file-based
+- **Scheduler** — 4 APScheduler jobs (ingest/retrain/evaluate/llm_analyze) persisted + 4th gate + llm propose→engine (origin LLM/LLM_FALLBACK)
+- **Research** — Brave/Tavily/Firecrawl tools + SearchBudget/cache (1h TTL), FMP/Finnhub providers, LLMResearchAgent tool-calling via DeepSeek with budget
+- **Control API** — 9 REST modules (/api/data,strategies,backtests,experiments,models,regimes,risk,execution,system) + WS /ws/events, AUTH_TOKEN fail-closed on LAN
+- **Frontend** — 13 routes (Dashboard, Data, StrategyLab, Experiments, LLM Inbox, Models, Model Compare, Regimes, Execution, Scheduler, Chat, System, Settings), React+TS Vite + TanStack Query, lightweight-charts 5.2.0 (CandlestickSeries via chart.addSeries), tokens.css design system, ErrorBoundary, SPA fallback (FastAPI catch-all), static assets via /assets mount, App.css correctly imported (19bb825 fix)
+- **Chat + MCP + Telegram** — /api/chat read-only tools + separate budget, MCP FastMCP stdio (READ 13 + WRITE 6 via platform_tools/registry.py), Telegram bot polling + inline buttons + @cudaquant mention, 3 alert triggers (kill-switch, job failure, challenger ready)
+- **Storage** — storage/db.py read_only=True for readers, no WAL PRAGMA (DuckDB incompatibility fixed at a0b7ad1), fail-loud propagation (7db327c), conftest.py pytest_configure isolation, restart-survival tests (4 tests)
+- **Infisical + Tailscale** — INFISICAL_TOKEN in .env/Infisical dev, secrets injected via `infisical run --token ... --env=dev`, server bound to Tailscale IP 100.109.22.68:8000 (not LAN 0.0.0.0), systemd template uses EnvironmentFile=.env (requires manual sudo install)
 
-## Crypto support — working tree ⏳ (UNCOMMITTED, in-flight)
-Crypto support is implemented in the working tree but is **not committed** and was
-observed being actively modified during the docs pass (the provider file appeared,
-disappeared, and reappeared between commands). Do not treat any of this as done until
-committed and re-verified:
-- **`cudaquant/providers/alpaca_crypto_provider.py`** — `AlpacaCryptoMarketDataProvider`
-  using alpaca-py `CryptoHistoricalDataClient` / `CryptoBarsRequest`; symbols in
-  crypto-pair format (`"BTC/USD"`, `"ETH/USD"`); implements the `MarketDataProvider` ABC.
-- **Fractional quantities:** `qty` changed `int → float` in `Order`/`Fill`/`Position`
-  schemas (also `Bar.volume`/`Trade.size` `int → float`).
-- **GTC time-in-force:** `alpaca_broker.py` selects `TimeInForce.GTC` for symbols
-  containing `/` (crypto pairs) vs `TimeInForce.DAY` for equities.
-- **Caveats observed:** `tests/unit/test_order_service.py::test_order_service_with_fractional_qty`
-  currently **FAILS** (it asserts the old `int`-schema rejection; with the float schema,
-  pydantic 2.13.4 accepts `qty=0.0234`, so the test's expectation is stale). Ruff reports
-  **1 error** (F841 unused `service` in that test). Both are working-tree-only; the
-  committed tree is green.
-- Full suite in the churned working tree: **149 passed, 1 failed, 1 skipped**.
+## What the last local UI audit saw (2026-08-11, headless via 127.0.0.1:8765 with auth)
 
-## Part 1 — Correction pass ✅ (committed 8079f68)
-- **Market order crash fixed:** `order_service.py` fetched `account`/`positions` only after
-  building the ref-price payload, so every market order (no `limit_price`) hit a NameError
-  before any gate ran. Account state is now fetched first, wrapped in try/except that fails
-  the order through the risk-gate path.
-- **list_orders SDK API fixed:** `alpaca_broker.py` called `get_orders(status=..., limit=...)`
-  with status as a direct kwarg — wrong alpaca-py SDK signature. Now uses
-  `GetOrdersRequest(status=..., limit=...)` passed as `filter=`.
-- **Missing `timezone` import** in `alpaca_provider.py` added.
-- **New regression test** `test_market_order_default_path_runs_all_gates` — the market-order
-  path (the default API path) previously had zero coverage.
-- **Ruff: 0 errors** (verified with ruff 0.15.11).
+- **SPA:** all routes return 200 HTML (was 404 before catch-all)
+- **13 routes:** all render nav (count 1), no pageerror crashes — Data Explorer now renders 7 canvas elements (was TypeError addCandlestickSeries before fix)
+- **Design tokens:** loaded (--bg:#0B0D11 --accent:#2E9BFF via App.css), dark theme, sidebar, pills
+- **Auth:** localStorage api_auth_token set → API calls succeed; without token /api/* 401 as designed
+- **Remaining visual note:** /scheduler shows "Next run: Invalid Date" on job cards (null→str(None) parsing), /execution order colors now correct after enum .value fix, Strategy Lab schema form + DataExplorer chart + LLM inbox breakdown all present in code (not re-screenshotted with live data this pass)
 
-## Part 2 — Scheduler & autonomy build ✅ (committed fbd2d24, 2eda669, 9824782)
-- **`cudaquant/scheduler/service.py`** — `SchedulerService` on **APScheduler
-  `AsyncIOScheduler`** with four toggleable jobs:
-  - `ingest` (every 5 min) — fetch bars from configured provider
-  - `retrain` (every 1 h) — train a new candidate on latest data
-  - `evaluate` (every 2 h) — walk-forward evaluate challengers vs champion
-  - `llm_analyze` (every 4 h) — run LLMResearchAgent, auto-enqueue proposal
-- **DuckDB persistence** — job cadences, enabled flags, run history, and the auto-execute
-  flag survive restarts (`scheduler_state` table via `storage.db`).
-- **4th execution gate:** `SCHEDULER_AUTO_EXECUTE` (`auto_execute_enabled`, default **False**)
-  via `SchedulerService.can_auto_execute()` — an independent gate *on the scheduler layer*,
-  additional to OrderService's three (config, RiskGovernor, KillSwitch). Enable requires
-  explicit `{"confirm": "ENABLE"}` on the API. **Wired** in Correction Pass 3 through
-  `execute_champion_signal()` (see above).
-- **Scheduler is structurally incapable of auto-promotion:** no `promote` method exists on
-  the service; jobs and callbacks are promotion-free (tested). Champion promotion remains a
-  human UI action.
-- **REST routes** (`cudaquant/api/routes/scheduler_routes.py`, bearer-authed):
-  `GET /api/scheduler/`, `PUT /api/scheduler/jobs/{name}`, `POST /api/scheduler/jobs/{name}/run-now`,
-  `PUT /api/scheduler/auto-execute` (confirm-gated), `DELETE /api/scheduler/auto-execute`.
-- **App wiring** (`app.py` lifespan): scheduler started on API startup, callbacks wired —
-  ingest→synthetic generator, retrain→train LR candidate into ModelRegistry, evaluate→count
-  champion/challenger, llm_analyze→`LLMResearchAgent.propose_experiment()` →
-  `ExperimentEngine.propose(origin=LLM)`.
-- **Live-performance endpoint:** `GET /api/models/{model_id}/live-performance`
-  (`model_routes.py`) — returns filled-order count from OrderService plus stored backtest
-  metrics. **Stand-in only** — not real P&L tracking yet.
-- **Tests:** `tests/unit/test_scheduler.py` (10 tests) — 4th-gate default-off/on/off,
-  auto-promotion impossibility (no method, no callback, no job), config persistence,
-  run-now. Plus `tests/unit/test_four_gate_chain.py` (5 tests) for the full gate chain.
-- **Frontend:** committed — `Scheduler.tsx` and `LLMInbox.tsx` pages + nav routes exist in
-  the React app (frontend/src/pages/). Part 2 UI is no longer a gap.
+## What is NOT yet user-ready (needs next architect passes)
 
-## Completed: Full-Stack Integration (prior milestones, still true)
-
-### Phase 1 — Alpaca integration ✅
-- AlpacaBroker + AlpacaMarketDataProvider (alpaca-py 0.43.5)
-- OrderService: single sanctioned order entry with 3 gates
-- 8/8 safety tests: config gate, RiskGovernor, KillSwitch all independently verified
-
-### Phase 2 — Experiment persistence ✅
-- ExperimentEngine persists to DuckDB, survives restarts
-
-### Phase 3 — Control API ✅
-- 9 REST route modules: data, strategies, backtests, experiments, models, regimes, risk, execution, system
-- WebSocket: /ws/events for dispatch stats + event broadcast
-- All routes tested via FastAPI TestClient
-
-### Phase 4 — Auth & networking ✅
-- API_AUTH_TOKEN required on non-loopback binds
-- Fail-closed: refuses to start on 0.0.0.0 without token
-- Bearer auth on all /api/* and /ws/* routes
-
-### Phase 5 — Frontend ✅ (11 pages)
-- React+TypeScript+Vite, 11 pages incl. Scheduler + LLMInbox, lightweight-charts candlestick charts
-- Built and verified (TypeScript strict, ESLint clean)
-- Served as static files by FastAPI at /
-
-### Phase 6 — Deploy ✅
-- frontend built on dev machine, shipped as static bundle (no Node on Jetson)
-- scripts/e2e_test.sh for end-to-end verification
-
-## End-to-End Verification (Jetson, 0a44707)
-Pasted from `scripts/e2e_test.sh` run on jetson-orin:
-
-1. HEALTH: `{"status":"ok","version":"0.1.0"}` ✅
-2. READINESS: `{"gpu_active":true,"ml_gpu_active":true,"trading_mode":"paper"}` ✅
-3. SYSTEM: `{"cuda_enabled":true,"gpu_active":true,"ml_gpu_active":true}` ✅
-4. STRATEGIES: 3 strategies with introspected parameter schemas ✅
-5. BACKTEST: 310 trades, sharpe=-0.091, max_drawdown=0.029 ✅
-6. DASHBOARD: served at / ✅
-7. GPU DISPATCH: 2,180 GPU calls on rolling_min/max ✅
-8. EXPERIMENTS: list works ✅
-
-Correction Pass 3 and the working-tree crypto changes have **not** been synced to Jetson
-or re-verified on-device.
+- **Docs stale before 555b9cb** — now reconciled here, but Jetson not yet synced; README/CUDA_BENCHMARKS cover 0a44707 numbers, need re-measure after Jetson pull
+- **No first-run wizard** — new user must edit .env + run setup.sh + know Tailscale IP; UI empty states hint but no guided Data→Strategy→Backtest→Experiment→Promotion flow
+- **live-performance stub** — returns filled order count, not real P&L/drawdown vs backtest; UI Model Compare shows it as "live" but it's incomplete for promotion decisions
+- **Unattended not soaked** — scheduler tested in bursts, never multi-day; systemd still manual (BLOCKERS.md sudo), Telegram chat_id live (6369764765) but verify_cleanup port-range narrow (8765-8779) vs pgrep
+- **WebSocket auth** at connect time, delete endpoints for experiments/models, and finance-data UI exposure are still stubs
+- **Strategy edge unproven** — last real backtest sharpe -0.091 on synthetic; no paper track record; expectation management needed
 
 ## Tests
-- **Committed HEAD (3ff2deb):** **144 passed, 1 skipped** full suite at Correction Pass 3
-  (130 unit + 14 integration + 1 GPU parity skip off-Jetson). Not re-measured at HEAD after
-  the working-tree churn.
-- **Current working tree (churned, verified 2026-08-10 during the Telegram pass):**
-  **184 passed, 1 skipped** (GPU parity skip off-Jetson) — includes the Telegram alert
-  tests, the landed LLM tool-budget/provider tests, and the crypto float-qty work (the
-  formerly-failing `test_order_service_with_fractional_qty` now passes).
-- **On this Mac, `pytest` from the repo root fails at collection:** the local `.env`
-  contains `FMP_API_KEY` and `FINNHUB_API_KEY`, which are not fields of the Settings model
-  (pydantic `extra=forbidden`) — Settings() raises before tests run. The working tree adds
-  `extra="ignore"` to settings.py to fix this; until then run tests with a clean env or
-  remove those keys from `.env`.
-- **8/8 GPU parity tests pass** on Jetson (verified at 0a44707)
-- **8/8 order service safety tests pass**
-- Ruff: 0 errors on the files touched by the Telegram pass
 
-## Known limitations
-- **Telegram alerting is configured nowhere yet** — `TELEGRAM_BOT_TOKEN` /
-  `TELEGRAM_CHAT_ID` are unset by default, so all alert call sites silently no-op
-  (documented behavior, ADR-0017). Wire a real bot/chat id to enable.
-- **Crypto support is uncommitted / in-flight** — `alpaca_crypto_provider.py`, float qty,
-  and GTC TIF live in the working tree only; the fractional-qty test has been updated to
-  assert float acceptance and passes in the current tree. Commit + re-verify before calling
-  crypto done.
-- **Search tool wrappers NOT built** — `BRAVE_SEARCH_API_KEY` / `TAVILY_API_KEY` /
-  `FIRECRAWL_API_KEY` settings fields exist, but there is no Brave/Tavily/Firecrawl client
-  code anywhere in the repo.
-- **LLM_API_KEY is effectively unset** — the `.env` value is a placeholder, so
-  `LLMResearchAgent` runs in local deterministic fallback mode (no provider configured).
-  Documented state, not a blocker.
-- **Local `.env` drift** — `FMP_API_KEY` / `FINNHUB_API_KEY` present in `.env` but absent
-  from the Settings model break Settings() construction on this Mac (collection errors).
-  Working-tree `extra="ignore"` addresses it; not yet committed.
-- **live-performance endpoint is a stand-in** — returns filled-order count, not realized P&L
-- **Correction Pass 3 + crypto not yet on Jetson** — verified Jetson state is still 0a44707
-- RAPIDS cuML RandomForest GPU path still blocked by CUDA version (BLOCKERS.md)
-- Live trading stays **OFF by default**; scheduler auto-execute also defaults **OFF**
-- WebSocket auth not enforced at connect time (uses query param or first message)
+- **Local (555b9cb):** 200 passed, 1 skipped, ruff 0, 67 warnings (datetime.utcnow deprecations)
+- **Jetson (0a44707):** 8/8 GPU parity pass, e2e 8 checks (health/readiness/system/strategies/backtest/dashboard/GPU dispatch/experiments) — needs re-run after pull to 555b9cb
+- **Coverage:** 32%→45%→188 tests era; MCP + platform_tools still 0% before this fix (now 3 MCP tests)
