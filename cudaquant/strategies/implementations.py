@@ -28,7 +28,9 @@ class IntradayMomentum(Strategy):
         self.exit_lookback = exit_lookback or lookback
         self._cached_high: np.ndarray | None = None
         self._cached_low: np.ndarray | None = None
-        self._cached_len: int = 0
+        self._cached_exit_high: np.ndarray | None = None
+        self._cached_exit_low: np.ndarray | None = None
+        self._cached_data_ref: pd.DataFrame | None = None
 
     def generate_signals(self, data: pd.DataFrame) -> pd.Series:
         """Generate position signals: 1 (long), -1 (short), 0 (flat).
@@ -38,20 +40,24 @@ class IntradayMomentum(Strategy):
         Exit:  close < rolling_low[exit_lookback] → flat (from long)
                close > rolling_high[exit_lookback] → flat (from short)
 
-        Caches rolling feature computation — only recomputes when data grows.
+        Caches rolling feature computation, invalidated on the IDENTITY of
+        `data` (not just its length) — a length-only check would silently
+        reuse stale features if this instance is ever called with a
+        different DataFrame that happens to have the same row count.
         """
         close = data["close"].values.astype(np.float64)
         n = len(close)
 
-        # Cache: only recompute when data has grown
-        if self._cached_high is None or n != self._cached_len:
+        if self._cached_data_ref is None or data is not self._cached_data_ref:
             self._cached_high = rolling_max(close, self.lookback)
             self._cached_low = rolling_min(close, self.lookback)
-            self._cached_len = n
+            self._cached_exit_high = rolling_max(close, self.exit_lookback)
+            self._cached_exit_low = rolling_min(close, self.exit_lookback)
+            self._cached_data_ref = data
         entry_high = self._cached_high
         entry_low = self._cached_low
-        exit_high = rolling_max(close, self.exit_lookback)
-        exit_low = rolling_min(close, self.exit_lookback)
+        exit_high = self._cached_exit_high
+        exit_low = self._cached_exit_low
 
         signals = np.zeros(n, dtype=int)
         position = 0
@@ -104,21 +110,23 @@ class MeanReversion(Strategy):
         self.entry_threshold = entry_threshold
         self.exit_threshold = exit_threshold
         self._cached_zscore: np.ndarray | None = None
-        self._cached_len: int = 0
+        self._cached_data_ref: pd.DataFrame | None = None
 
     def generate_signals(self, data: pd.DataFrame) -> pd.Series:
         """Generate signals based on rolling z-score.
 
-        Caches z-score computation — only recomputes when data grows,
-        not on every bar of the walk-forward loop (~30x speedup).
+        Caches z-score computation, invalidated on the IDENTITY of `data`
+        (not just its length) — a length-only check would silently reuse
+        a stale z-score array if this instance is ever called with a
+        different DataFrame of the same row count (e.g. two different
+        backtests reusing one strategy instance).
         """
         close = data["close"].values.astype(np.float64)
         n = len(close)
 
-        # Cache: only recompute z-score when data has grown
-        if self._cached_zscore is None or n != self._cached_len:
+        if self._cached_data_ref is None or data is not self._cached_data_ref:
             self._cached_zscore = rolling_zscore(close, self.window)
-            self._cached_len = n
+            self._cached_data_ref = data
         zscore = self._cached_zscore
 
         signals = np.zeros(n, dtype=int)
