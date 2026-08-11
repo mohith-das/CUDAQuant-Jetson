@@ -42,13 +42,15 @@ async def test_mcp_read_tool_works():
         await session.initialize()
         result = await session.call_tool("list_models", {})
         assert not result.is_error, f"Tool call errored: {result}"
-        # Empty-list results route through structured_content rather than a
-        # text content block on this SDK — check both, matching what a real
-        # client does.
-        if result.content:
-            data = json.loads(result.content[0].text)
-        else:
+        # structured_content is the reliable, complete field for typed
+        # results on this SDK — for a list return value it emits ONE
+        # content block PER ITEM (content[0] alone is only the first
+        # element, not the whole list), so structured_content must be
+        # preferred, not used as an empty-list-only fallback.
+        if result.structured_content is not None:
             data = result.structured_content.get("result", result.structured_content)
+        else:
+            data = json.loads(result.content[0].text)
         assert isinstance(data, list), f"Expected list, got {type(data)}"
 
 
