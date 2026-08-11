@@ -65,3 +65,22 @@ def get_experiment(experiment_id: str):
             "changed_parameters": exp.changed_parameters,
             "metrics": exp.metrics, "created_at": exp.created_at,
             "notes": exp.notes}
+
+
+@router.delete("/{experiment_id}")
+def delete_experiment(experiment_id: str):
+    """Delete an experiment by ID."""
+    exp = _engine.get(experiment_id)
+    if exp is None:
+        raise HTTPException(404, "Experiment not found")
+    # Remove from in-memory cache
+    del _engine._experiments[experiment_id]
+    # Remove from DuckDB
+    import duckdb
+    try:
+        con = duckdb.connect(str(_engine._db_path or settings.DUCKDB_PATH))
+        con.execute("DELETE FROM experiments WHERE experiment_id = ?", [experiment_id])
+        con.close()
+    except Exception as e:
+        raise HTTPException(500, f"DB delete failed: {e}") from e
+    return {"deleted": experiment_id}

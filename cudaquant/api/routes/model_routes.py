@@ -55,7 +55,25 @@ def promote_model(model_id: str):
 @router.post("/{model_id}/retire")
 def retire_model(model_id: str):
     ok = _registry.retire(model_id)
-    return {"success": ok, "model_id": model_id}
+    return {"success": ok, "model_id": model_id, "status": _registry.get(model_id).status.value}
+
+
+@router.delete("/{model_id}")
+def delete_model(model_id: str):
+    """Delete a model by ID."""
+    m = _registry.get(model_id)
+    if m is None:
+        raise HTTPException(404, "Model not found")
+    del _registry._models[model_id]
+    # Remove from DuckDB
+    import duckdb
+    try:
+        con = duckdb.connect(_registry._db_path or settings.DUCKDB_PATH)
+        con.execute("DELETE FROM model_registry WHERE model_id = ?", [model_id])
+        con.close()
+    except Exception as e:
+        raise HTTPException(500, f"DB delete failed: {e}") from e
+    return {"deleted": model_id}
 
 
 @router.get("/{model_id}/live-performance")
