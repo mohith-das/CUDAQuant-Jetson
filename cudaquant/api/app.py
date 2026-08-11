@@ -1,4 +1,6 @@
 """FastAPI application — all routes, auth, CORS, LAN safety check."""
+import asyncio
+import contextlib
 import logging
 import os
 import sys
@@ -61,11 +63,19 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Scheduler started")
 
+    # Start Telegram bot polling as background task
+    from cudaquant.alerts.telegram_bot import run_telegram_polling
+    tg_task = asyncio.create_task(run_telegram_polling())
+    logger.info("Telegram bot polling started")
+
     # Log restart for crash recovery visibility
     from cudaquant.alerts.telegram import TelegramAlerter
     TelegramAlerter().send(f"CUDAQuant server started (mode={settings.TRADING_MODE})")
 
     yield
+    tg_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await tg_task
     scheduler.stop()
     logger.info("CUDAQuant API shutdown complete")
 
