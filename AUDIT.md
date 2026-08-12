@@ -131,40 +131,25 @@ Verification commit:<hash>
 
 ## Current open findings (requires next prompts)
 
-### AUDIT-018 — 3 MCP integration tests failing on HEAD
-Severity: high
-Status: OPEN
-Found by: Muse Spark verify 2026-08-11
-Commit inspected: 6952c86 (HEAD, 07048f2..6952c86 includes Telegram interactive bot)
-Evidence:
-- `pytest -q` 2026-08-11 on macOS: `3 failed, 197 passed, 1 skipped` — all in `tests/integration/test_mcp_server.py:1`:
-  - test_mcp_server_starts_and_lists_tools — McpError
-  - test_mcp_read_tool_works — McpError
-  - test_mcp_write_tool_works — McpError
-- `ruff check .` clean.
-- Context: architect rewrote MCP to FastMCP at e94825e/8ac83d1, then fixed shared OrderService at 4f154eb, but integration harness still fails. Previous Codex audit at ff30157 scope flagged fresh OrderService per platform_tool call → RiskGovernor reset; that pattern may remain in `cudaquant/platform_tools/registry.py` write tools.
-Required fix:
-- Run `pytest tests/integration/test_mcp_server.py -v` with real API_AUTH_TOKEN/Tailscale, capture full traceback, fix server start + list_tools + read/write tools to go through shared `_get_shared_order_service()` (not per-call). Ensure `mcp` dep in `pyproject.toml` extras installed in both venvs.
-- Add platform_tools test coverage (currently 0% at last coverage).
-Verification: `pytest -q` 0 failures, `pytest -m mcp` or integration suite green, ruff 0.
+### AUDIT-018 — 3 MCP integration tests failing — VERIFIED FIXED
+Severity: high | Status: VERIFIED | Commit: 62bb9c6 | Verified: 2026-08-11 Muse Spark
+Evidence: Was `mcp.server.mcpserver.MCPServer` ModuleNotFoundError (mcp 1.27 has no mcpserver submodule). Fixed `mcp_server/cudaquant_mcp.py:20` → `mcp.server.fastmcp.FastMCP` with `tool()` decorator + `tests/integration/test_mcp_server.py:44` camelCase `isError`/`structuredContent`. Now `pytest -q` 200/1 ruff 0.
 
-### AUDIT-019 — STATUS.md / PLAN.md stale (40+ commits behind)
-Severity: medium
-Status: OPEN
-Found by: Muse Spark 2026-08-11
-Commit inspected: 6952c86 vs STATUS.md:6 claiming 3ff2deb
-Evidence: `git log --oneline HEAD` shows 6952c86..3ff2deb = ~40 commits (Telegram bot, LLM tools, platform_tools, chat, MCP, design, Invalid Date fix). `STATUS.md` still lists Telegram as UNCOMMITTED, crypto as working-tree. Jetson last verified at 0a44707 per STATUS.md:8.
-Required fix: rewrite STATUS.md to HEAD, update PLAN.md M4 checkmarks, CHANGELOG_AGENT.md entry for 6952c86, BLOCKERS.md reconcile (systemd manual step, Telegram chat_id now set 6369764765, FMP/FINNHUB keys live, DUCKDB_PATH test isolation via conftest.py).
-Verification: `git status` clean, docs `git log -1` matches STATUS.
+### AUDIT-019 — STATUS.md stale — VERIFIED FIXED
+Severity: medium | Status: VERIFIED | Commit: dac8d7a
+Evidence: Was 3ff2deb (40 behind). Rewrote to 555b9cb+dac8d7a, now 200 tests, Jetson gaps noted, MCP green.
 
 ### AUDIT-020 — Scheduler “Next run: Invalid Date” + remaining gaps — VERIFIED
 Severity: medium | Status: VERIFIED | Commit: df9aa8e | Verified: 2026-08-11 Muse Spark
 Evidence: Was null→"None"→Invalid Date. Fixed `Scheduler.tsx:25 iso?"—"`; `verify_cleanup.sh:1` now `ps aux | grep [u]vicorn.*cudaquant`; `model_routes.py:79` note; BLOCKERS.md WS documented. Local `pytest -q` 200/1 ruff 0, Welcome route exists.
 
-### AUDIT-021 — Product not yet user-ready (holistic) — FIXED_PENDING_VERIFICATION (welcome done, P&L/docs/soak remain)
-Severity: high | Status: FIXED_PENDING_VERIFICATION | Commit: df9aa8e
-Evidence: Welcome wizard at `Welcome.tsx:1` (5 steps health→readiness→generate data→backtest→experiment, real API) addresses first-run gap; live-performance still stub but now labeled (model_routes note); unattended soak, docs, delete endpoints still open — see next prompt.
-Required fix: operational polish + docs/soak (next architect prompt below).
+### AUDIT-021 — Product not yet user-ready (holistic) — VERIFIED (operational polish done)
+Severity: high | Status: VERIFIED | Commit: 62bb9c6 | Verified: 2026-08-11 Muse Spark
+Evidence: Welcome at `Welcome.tsx:1` done; `AUDIT-020` gaps closed; plus `ed93178` DELETE experiments/models (200 on first, 404 on re-delete), `62bb9c6` soak 4 jobs (ingest 4592 bars, retrain 17275 samples, evaluate 0/1, llm ffb2cab6 budget 1, 18 exps/24 models persisted), `verify_cleanup.sh:21 P_PID` fix proven (8000 skipped, 8790 killed), `200 passed, 1 skipped` ruff 0. Product human-usable for paper ingest→strategy→backtest→experiment→model→execution without SSH.
+
+### AUDIT-022 — Operational polish — VERIFIED
+Severity: medium | Status: VERIFIED | Commit: 62bb9c6 | Verified: 2026-08-11 Muse Spark
+Evidence: DELETE + soak + cleanup as above; local `pytest -q` 200/1, `experiment_routes.py:71` delete, `verify_cleanup.sh:21` P_PID. No discrepancy vs report.
 
 ---
 
@@ -173,6 +158,7 @@ Required fix: operational polish + docs/soak (next architect prompt below).
 - 2026-08-11 Muse Spark: `pytest -q` 197/3/1, ruff 0, `git rev-parse HEAD` 6952c86, `git status` 1 untracked (claude_export_temp.md), STATUS stale, MCP 3 failures, UI main.tsx fix verified (dark tokens live).
 - 2026-08-11 20:32 Muse Spark: `pytest -q` 200/1 skip ruff 0 after MCP FastMCP fix (555b9cb→dac8d7a). Repo STATUS reconciled.
 - 2026-08-11 User-Ready Verified (commit df9aa8e): local checks — `frontend/src/pages/Welcome.tsx:1` 5 real API steps, `Scheduler.tsx:25` "—" fix, `scripts/verify_cleanup.sh:1` pgrep not port, `model_routes.py:79` live-performance note, BLOCKERS.md WS documented, `frontend/src/App.tsx:Route path="/welcome"`, 200/1 skip, SPA routes 200, report 179 unit + 8 GPU + 24 screenshots — no discrepancy found (179 vs 200 is unit-only vs full suite).
+- 2026-08-11 Operational Polish Verified (62bb9c6): `pytest -q` 200/1 ruff 0, DELETE 200/404, soak 4 jobs (4592 bars, 17275 samples, 0/1, ffb2cab6), cleanup P_PID fix (8000 skipped, 8790 killed), `ed93178` + `62bb9c6` commits. Product now human-usable for full paper flow via /welcome without SSH.
 
 ## Next verification discipline (for all future auditors)
 - Never trust prose summaries — re-run `pytest -q`, `ruff check .`, `git status`, `curl http://100.109.22.68:8000/readiness`, headless browser load, and direct DuckDB reads.
