@@ -83,7 +83,7 @@ def detect_regimes(payload: dict):
     dist = detector.regime_distribution(df)
 
     return {
-        "regimes": [{"timestamp": str(idx), "regime": r.value}
+        "regimes": [{"timestamp": str(idx), "regime": getattr(r, "value", str(r))}
                      for idx, r in regimes.items()][:100],
         "distribution": dist,
     }
