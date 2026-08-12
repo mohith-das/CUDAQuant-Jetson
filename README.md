@@ -2,8 +2,6 @@
 
 **GPU-accelerated quantitative trading research platform for NVIDIA Jetson Orin Nano.**
 
-Built autonomously by OpenCode (DeepSeek V4 Pro architect + V4 Flash worker pool).
-
 ## Architecture
 
 ```
@@ -138,7 +136,7 @@ python -m pytest tests/unit/ -v
 ## Test Results
 
 ```
-95 passed in 0.76s
+179 passed in 1.19s
 ```
 
 All tests pass on macOS (CPU). GPU tests pass on Jetson with documented float32 precision limits.
@@ -184,6 +182,6 @@ LLM_API_KEY=                 # optional — LLM agent falls back to local analys
 
 ## Repository
 
-- **Private:** `git@github.com:mohith-das/CUDAQuant-Jetson.git`
-- **No secrets committed** — `.env`, API keys, and credentials excluded via `.gitignore`
-- **Large data excluded** — Parquet/DuckDB files in `/data/` not tracked
+- `git@github.com:mohith-das/CUDAQuant-Jetson.git`
+- API keys and credentials are excluded via `.gitignore` and never committed
+- Parquet/DuckDB data files in `/data/` are not tracked
