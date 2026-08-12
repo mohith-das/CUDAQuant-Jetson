@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "./api";
+import { queryClient, hasAuthToken, setAuthToken } from "./api";
+import { useState } from "react";
 import Dashboard from "./pages/Dashboard";
 import DataExplorer from "./pages/DataExplorer";
 import StrategyLab from "./pages/StrategyLab";
@@ -34,6 +35,48 @@ const nav = [
 ];
 
 export default function App() {
+  const [tokenInput, setTokenInput] = useState("");
+
+  if (!hasAuthToken()) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          minHeight: "100vh", background: "var(--bg)", color: "var(--fg)",
+          fontFamily: "var(--font-ui)", padding: "var(--space-4)",
+        }}>
+          <div style={{
+            background: "var(--surface)", border: "1px solid var(--border)",
+            borderRadius: 12, padding: "var(--space-8)", maxWidth: 480, width: "100%",
+          }}>
+            <h1 style={{ color: "var(--accent)", fontSize: "var(--text-title)", marginBottom: "var(--space-2)" }}>CUDAQuant</h1>
+            <p style={{ color: "var(--fg-muted)", marginBottom: "var(--space-6)" }}>
+              Connect to your Jetson instance. Paste the API token from your .env file
+              or Infisical dev environment.
+            </p>
+            <input
+              type="password"
+              value={tokenInput}
+              onChange={e => setTokenInput(e.target.value)}
+              placeholder="Paste API_AUTH_TOKEN here..."
+              style={{ width: "100%", marginBottom: "var(--space-3)", fontSize: "var(--text-body)" }}
+            />
+            <button
+              onClick={() => { if (tokenInput.trim()) setAuthToken(tokenInput.trim()); }}
+              disabled={!tokenInput.trim()}
+              style={{ width: "100%" }}
+            >
+              Connect
+            </button>
+            <p style={{ color: "var(--fg-faint)", fontSize: "var(--text-eyebrow)", marginTop: "var(--space-4)" }}>
+              Token is in ~/code/cudaquant/.env or Infisical. It stays in your browser&apos;s localStorage.
+            </p>
+          </div>
+        </div>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>

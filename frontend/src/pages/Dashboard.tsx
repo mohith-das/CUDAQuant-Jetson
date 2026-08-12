@@ -1,13 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../api";
 import { useState } from "react";
+import { AuthErrorBox, isAuthError } from "../AuthErrorBox";
 
 export default function Dashboard() {
   const { data: health } = useQuery({ queryKey: ["health"], queryFn: () => apiFetch<Record<string,unknown>>("/health"), refetchInterval: 5000 });
   const { data: readiness } = useQuery({ queryKey: ["readiness"], queryFn: () => apiFetch<Record<string,unknown>>("/readiness"), refetchInterval: 10000 });
-  const { data: system } = useQuery({ queryKey: ["system"], queryFn: () => apiFetch<Record<string,unknown>>("/api/system/"), refetchInterval: 10000 });
-  const { data: risk } = useQuery({ queryKey: ["risk"], queryFn: () => apiFetch<Record<string,unknown>>("/api/risk/"), refetchInterval: 5000 });
+  const { data: system, error: sysErr } = useQuery({ queryKey: ["system"], queryFn: () => apiFetch<Record<string,unknown>>("/api/system/"), refetchInterval: 10000 });
+  const { data: risk, error: riskErr } = useQuery({ queryKey: ["risk"], queryFn: () => apiFetch<Record<string,unknown>>("/api/risk/"), refetchInterval: 5000 });
   const { data: dispatch } = useQuery({ queryKey: ["dispatch-stats"], queryFn: () => apiFetch<Record<string,unknown>>("/api/system/dispatch-stats"), refetchInterval: 10000 });
+
+  if (isAuthError(sysErr) || isAuthError(riskErr)) return <AuthErrorBox />;
 
   const [ksConfirm, setKsConfirm] = useState("");
 
