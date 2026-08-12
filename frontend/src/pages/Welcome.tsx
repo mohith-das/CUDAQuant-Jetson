@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { apiFetch } from "../api";
+import { apiFetch, hasAuthToken } from "../api";
 import { Link } from "react-router-dom";
 
 export default function Welcome() {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(hasAuthToken() ? 1 : 0);
   const [results, setResults] = useState<Record<string,string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -20,6 +20,14 @@ export default function Welcome() {
   };
 
   const steps = [
+    {
+      title: "Connect API Token",
+      action: () => {
+        if (hasAuthToken()) { setStep(1); return; }
+        window.location.href = "/settings";
+      },
+      done: hasAuthToken(),
+    },
     {
       title: "Check System Health",
       action: () => runStep("health", () => apiFetch("/health")),

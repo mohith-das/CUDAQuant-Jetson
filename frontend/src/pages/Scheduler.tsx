@@ -23,6 +23,11 @@ const JOB_NAMES = ["ingest", "retrain", "evaluate", "llm_analyze"] as const;
 
 const fmtTime = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleString() : "—";
+const fmtInterval = (s: number) => {
+  if (s >= 3600) return `${Math.round(s/3600)}h (${s}s)`;
+  if (s >= 60) return `${Math.round(s/60)}m (${s}s)`;
+  return `${s}s`;
+};
 
 export default function Scheduler() {
   const { data: state, isLoading } = useQuery({
@@ -120,7 +125,7 @@ export default function Scheduler() {
                   {job.enabled ? "Enabled" : "Disabled"}
                 </span>
               </p>
-              <p>Interval: every {job.interval_seconds}s</p>
+              <p>Interval: every {fmtInterval(job.interval_seconds)}</p>
               <p>Last run: {fmtTime(job.last_run)}</p>
               <p>Next run: {fmtTime(job.next_run)}</p>
               <p>Last result: {job.last_result ?? "—"}</p>
