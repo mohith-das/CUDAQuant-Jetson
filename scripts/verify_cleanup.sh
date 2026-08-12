@@ -18,11 +18,11 @@ for pid in $(ps aux | grep '[u]vicorn.*cudaquant' | awk '{print $2}'); do
     if [ -n "$LISTENING" ]; then
         echo "Skipping production uvicorn PID=$pid (listening on port $REAL_PORT)"
         # Also protect its parent (infisical wrapper)
-        PPID=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
-        if [ -n "$PPID" ] && [ "$PPID" -gt 1 ]; then
-            PNAME=$(ps -o comm= -p "$PPID" 2>/dev/null | tr -d ' ')
+        P_PID=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+        if [ -n "$P_PID" ] && [ "$P_PID" -gt 1 ]; then
+            PNAME=$(ps -o comm= -p "$P_PID" 2>/dev/null | tr -d ' ')
             if echo "$PNAME" | grep -qi "infisical"; then
-                echo "Skipping production infisical wrapper PID=$PPID"
+                echo "Skipping production infisical wrapper PID=$P_PID"
             fi
         fi
     else
