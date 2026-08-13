@@ -22,6 +22,8 @@ from cudaquant.api.routes.scheduler_routes import router as sched_router
 from cudaquant.api.routes.scheduler_routes import set_scheduler
 from cudaquant.api.routes.strategy_routes import router as strategy_router
 from cudaquant.api.routes.system_routes import regime_router, system_router
+from cudaquant.api.routes.training_routes import router as training_router
+from cudaquant.api.routes.universe_routes import router as universe_router
 from cudaquant.api.routes.ws_routes import ws_router
 from cudaquant.config.settings import settings
 from cudaquant.scheduler.service import SchedulerService
@@ -124,6 +126,8 @@ app.include_router(system_router)
 app.include_router(regime_router)
 app.include_router(sched_router)
 app.include_router(chat_router)
+app.include_router(universe_router)
+app.include_router(training_router)
 
 # ── Static UI (served inline so SPA fallback works) ──────────────────────────
 frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"

@@ -3,6 +3,7 @@
 from cudaquant.providers.base import Broker, LLMProvider, MarketDataProvider, NewsProvider
 from cudaquant.providers.finnhub_provider import FinnhubProvider
 from cudaquant.providers.fmp_provider import FMPProvider
+from cudaquant.providers.search_provider import SearchProvider
 from cudaquant.providers.synthetic_provider import SyntheticMarketDataProvider
 
 __all__ = [
@@ -12,5 +13,6 @@ __all__ = [
     "LLMProvider",
     "MarketDataProvider",
     "NewsProvider",
+    "SearchProvider",
     "SyntheticMarketDataProvider",
 ]

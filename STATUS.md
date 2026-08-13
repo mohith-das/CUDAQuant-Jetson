@@ -1,17 +1,23 @@
 # STATUS.md — Current Repository State
 
-- **Last updated:** 2026-08-13 (Jetson deployed + boot-hang fix)
+- **Last updated:** 2026-08-13 (M5/M6 kickoff — actionable UI)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** ac74099 (CHANGELOG); Jetson running 198716c
+- **Current commit:** 334d416 (STATUS: Jetson deployed at 198716c, toggle verified live)
 - **Local tests:** 234 passed, 1 skipped, ruff 0; frontend build clean
 - **Jetson:** deployed at 198716c via Tailscale IP (matt.local mDNS dead);
   server verified live: health ok, /api/risk/ new shape, PUT live → 403 env gates
   (correct fail), PUT paper → 200, frontend serves toggle UI, broker_connected true
 
-## Active Work Claims
+## Active Work Claims (M5/M6 parallel tranche)
 
-(none)
+| Claim | Owner | Scope (non-overlapping) |
+|---|---|---|
+| M5a — Market search + stock info | worker-data | `cudaquant/providers/**`, `cudaquant/data/universe.py` (new) |
+| M6a — Training service | worker-ml | `cudaquant/ml/training.py` (new), `cudaquant/ml/*` only |
+| M5b/M6a routes — Universe + Training API | worker-backend | `cudaquant/api/routes/data_routes.py`, `cudaquant/api/routes/universe_routes.py` (new), `cudaquant/api/routes/training_routes.py` (new) — owns all `api/routes/**` edits |
+
+> UI (M5c/M6b) and LLM/execution slices (M7/M8) follow once these services land. Workers must read `cudaquant/providers/fmp_provider.py` + `finnhub_provider.py` for the wiring shape before editing.
 
 ## Shipped this session: paper/live trading-mode toggle
 
