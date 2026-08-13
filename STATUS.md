@@ -1,26 +1,32 @@
 # STATUS.md — Current Repository State
 
-- **Last updated:** 2026-08-13 (trading-mode toggle milestone in flight)
+- **Last updated:** 2026-08-13 (paper/live toggle shipped: e86fc52 + 385edab)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** e86fc52 (paper/live toggle core: TradingModeService, gates, PUT /api/risk/trading-mode)
-- **Local tests:** 201 passed, 1 skipped, ruff 0 (core committed at e86fc52)
+- **Current commit:** 385edab (toggle complete: tests + UI + docs; pushed)
+- **Local tests:** 228 passed, 1 skipped, ruff 0; frontend `npm run build` clean
 
-## Active Work Claims (architect-owned coordination)
+## Active Work Claims
 
-| Claim | Owner | Scope |
-|---|---|---|
-| Trading-mode toggle — core backend | architect (DONE, e86fc52) | trading_mode.py, order_service, settings, kill_switch, alpaca_broker, risk/system/health/chat routes, app.py, telegram_bot, registry, .env.example, test updates |
-| Trading-mode toggle — new tests | worker-tests (RUNNING) | tests/unit/test_trading_mode.py, tests/integration/test_trading_mode_api.py |
-| Trading-mode toggle — UI | worker-ui (RUNNING) | frontend/src/pages/Execution.tsx, Dashboard.tsx, Settings.tsx only |
-| Trading-mode toggle — README safety docs | worker-docs (RUNNING) | README.md only |
+(none — trading-mode toggle milestone complete)
 
-## In-flight: paper/live toggle (user requested; decisions locked)
+## Shipped this session: paper/live trading-mode toggle
 
-- Persisted desired mode (DuckDB `trading_mode_state`); boot re-validates .env gates → falls back paper + Telegram alert
-- paper→live: .env ack + typed `LIVE` confirm + kill switch disarmed + live broker probe; live→paper instant
-- `ENABLE_LIVE_TRADING` is now a string ack; `ALPACA_PAPER` = boot default only
-- Workers: tests / UI / README running in parallel; integration after.
+- **Core (e86fc52):** `TradingModeService` (execution/trading_mode.py) — desired mode
+  persisted to DuckDB (`trading_mode_state`); effective mode gated by .env ack +
+  kill switch + live broker probe; boot fails safe to paper + Telegram alert.
+  `ENABLE_LIVE_TRADING` is now a STRING ack (`I_UNDERSTAND_LIVE_TRADING_RISK`);
+  `ALPACA_PAPER` = boot default only. OrderService gate 1 reads effective mode via
+  provider; `set_mode()` rebuilds broker endpoint + flips governor; `PUT /api/risk/trading-mode`
+  (403 per failed gate), `GET /api/risk/` exposes desired/effective/mode_reason/env_live_eligible.
+  Consumers (readiness/system/chat/telegram/registry tools) read effective mode.
+- **Complete (385edab):** 27 new tests (unit matrix + API integration with state-restoring
+  fixtures), Execution page Trading Mode card (typed LIVE confirm / one-click paper),
+  Dashboard pill + Manage link, README "Switching paper ↔ live" section + Known
+  Limitations refresh. Fixed from test review: idempotent switch, malformed-row fallback.
+- **Follow-ups (noted, not blocking):** app import constructs a real AlpacaBroker
+  (pre-existing network call in test suite); live-mode gate logic unit-tested only —
+  no real live-account orders placed; Jetson not yet synced to 385edab.
 
 ## What is DONE and verified (local)
 

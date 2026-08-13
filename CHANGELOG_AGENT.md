@@ -144,3 +144,18 @@
   3-worker write smoke test (all Flash; architect stayed Pro). git init + PRIVATE repo
   + push. See STATUS.md for the exact commit.
 - **Handoff:** next session runs OpenCode `architect` (or `/resume`) to start Milestone 1.
+
+## 2026-08-13 — Paper/live trading-mode toggle (e86fc52 + 385edab)
+- User asked for a UI option to switch paper ↔ live. Four decisions locked:
+  Execution-page toggle + Dashboard pill, live→paper instant / paper→live typed
+  "LIVE" confirm, persistent (DuckDB) with boot re-validation vs .env gates, hard
+  .env ack kept.
+- Architect (Pro) built core: TradingModeService (desired/effective split, persist,
+  boot fail-safe), ENABLE_LIVE_TRADING → string ack, KillSwitch.is_live_ack_enabled,
+  OrderService mode_provider/broker_factory/set_mode/verify_live_connection,
+  AlpacaBroker(paper=), PUT /api/risk/trading-mode, consumer rewiring, test updates.
+- Parallel workers: worker-tests (27 tests), worker-ui (Execution/Dashboard/Settings),
+  worker-docs (README). Two implementation fixes from test review: idempotent switch
+  short-circuit, malformed persisted-row fallback.
+- Verified: 228 passed / 1 skipped, ruff 0, frontend builds. Pushed to origin/main.
+- Follow-ups: app-import AlpacaBroker network call (pre-existing), Jetson sync to 385edab.
