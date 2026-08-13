@@ -1,14 +1,36 @@
 import { useState, useRef, useEffect } from "react";
 import { createChart, CandlestickSeries } from "lightweight-charts";
+import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../api";
+
+interface Universe { id: string; name: string; symbols: string[]; }
+
+const DEFAULT_SYMBOLS = ["AAPL","MSFT","GOOGL","AMZN","SPY","QQQ","BTC/USD"];
 
 export default function DataExplorer() {
   const [symbol, setSymbol] = useState("AAPL");
   const [bars, setBars] = useState<Array<Record<string,unknown>>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [universeId, setUniverseId] = useState("");
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<ReturnType<typeof createChart> | null>(null);
+
+  const { data: universes, error: universesError } = useQuery({
+    queryKey: ["universes"],
+    queryFn: () => apiFetch<Universe[]>("/api/universe/"),
+  });
+
+  const activeUniverse = universes?.find((u) => u.id === universeId) ?? null;
+  const symbolOptions =
+    activeUniverse && activeUniverse.symbols.length > 0 ? activeUniverse.symbols : DEFAULT_SYMBOLS;
+
+  // Keep the current symbol valid when a universe is selected.
+  useEffect(() => {
+    if (activeUniverse && activeUniverse.symbols.length > 0 && !activeUniverse.symbols.includes(symbol)) {
+      setSymbol(activeUniverse.symbols[0]);
+    }
+  }, [activeUniverse?.id]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -59,10 +81,20 @@ export default function DataExplorer() {
   return (
     <div>
       <h2>Data Explorer</h2>
-      <div style={{ marginBottom: "var(--space-4)", display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+      <div style={{ marginBottom: "var(--space-4)", display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
+        <label style={{ color: "var(--fg-muted)" }}>Universe:</label>
+        <select value={universeId} onChange={(e) => setUniverseId(e.target.value)}>
+          <option value="">All symbols</option>
+          {(universes ?? []).map((u) => (
+            <option key={u.id} value={u.id}>{u.name || "unnamed"}</option>
+          ))}
+        </select>
+        {universesError && (
+          <span style={{ color: "var(--fg-faint)", fontSize: "var(--text-eyebrow)" }}>Universe list unavailable</span>
+        )}
         <label style={{ color: "var(--fg-muted)" }}>Symbol:</label>
         <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-          {["AAPL","MSFT","GOOGL","AMZN","SPY","QQQ","BTC/USD"].map(s => <option key={s}>{s}</option>)}
+          {symbolOptions.map(s => <option key={s}>{s}</option>)}
         </select>
         <button onClick={fetchData} disabled={loading}>{loading ? "Loading..." : "Fetch"}</button>
       </div>

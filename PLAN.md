@@ -50,13 +50,13 @@
 ## Milestone 5 — Market Intelligence & Universe (actionable UI, part 1)
 > Gap verified 2026-08-13 via 14 live screenshots: Dashboard has only kill-switch, Data has AAPL-only chart, Experiments/LLM Inbox are read-only tables, Models shows 60 clones, Regimes is a single button — no market overview, no search, no universe, no training picker, no LLM apply, no champion signal loop. This milestone makes the UI actionable.
 
-- [ ] **5a — Market search + stock info** — `GET /api/data/search?q=` (FMP/Finnhub with synthetic fallback, cached), `GET /api/data/{symbol}/info` (quote + profile + fundamentals panel), wiring the existing `FMPProvider`/`FinnhubProvider` (currently orphaned) behind the new routes (worker-data: providers; worker-backend: routes; worker-tests: integration)
-- [ ] **5b — Universe (watchlist) CRUD** — `Universe` entity persisted in DuckDB (`universes` table, owner=request is single-user), `GET|POST|PUT|DELETE /api/universe` + `POST /api/universe/{id}/symbols`, shared singleton pattern; used as default `symbols` source everywhere (worker-data: storage + model; worker-backend: routes)
-- [ ] **5c — Market page + DataExplorer multi-symbol** — new `frontend/src/pages/Market.tsx` (search bar, quote card, info panel, universe manager, add-to-universe), DataExplorer multi-symbol + universe dropdown (worker-ui)
+- [x] **5a — Market search + stock info** — `GET /api/data/search?q=` (FMP/Finnhub with synthetic fallback, cached), `GET /api/data/{symbol}/info` (quote + profile + fundamentals panel), wiring the existing `FMPProvider`/`FinnhubProvider` (currently orphaned) behind the new routes (worker-data: providers; worker-backend: routes; worker-tests: integration)
+- [x] **5b — Universe (watchlist) CRUD** — `Universe` entity persisted in DuckDB (`universes` table, owner=request is single-user), `GET|POST|PUT|DELETE /api/universe` + `POST /api/universe/{id}/symbols`, shared singleton pattern; used as default `symbols` source everywhere (worker-data: storage + model; worker-backend: routes)
+- [x] **5c — Market page + DataExplorer multi-symbol** — new `frontend/src/pages/Market.tsx` (search bar, quote card, info panel, universe manager, add-to-universe), DataExplorer multi-symbol + universe dropdown (worker-ui)
 
 ## Milestone 6 — Training Studio
-- [ ] **6a — Training service** — `cudaquant/ml/training.py` + `training_runs` DuckDB table: `POST /api/training/run {symbols|universe_id, model_family: logreg|random_forest, features:[22], horizon, test_split}` → `TrainingRun` (candidate in ModelRegistry), feature-matrix via dispatch layer, leakage guards, persisted metrics (worker-ml)
-- [ ] **6b — Training Studio UI** — `frontend/src/pages/Training.tsx` (universe picker, model-family toggle, 22 feature checkboxes grouped by category, horizon/split controls, run button + history table, link to Model Compare) (worker-ui)
+- [x] **6a — Training service** — `cudaquant/ml/training.py` + `training_runs` DuckDB table: `POST /api/training/run {symbols|universe_id, model_family: logreg|random_forest, features:[22], horizon, test_split}` → `TrainingRun` (candidate in ModelRegistry), feature-matrix via dispatch layer, leakage guards, persisted metrics (worker-ml)
+- [x] **6b — Training Studio UI** — `frontend/src/pages/Training.tsx` (universe picker, model-family toggle, 22 feature checkboxes grouped by category, horizon/split controls, run button + history table, link to Model Compare) (worker-ui)
 
 ## Milestone 7 — LLM Recommendation Loop
 - [ ] **7a — Structured proposal** — extend `ExperimentProposal` with `strategy|model_family|symbols` + feed real champion metrics/regime/universe into `llm_analyze` context; `POST /api/experiments/{id}/apply` → creates a `TrainingRun` + backtest (worker-ml + worker-backend)

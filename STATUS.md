@@ -9,13 +9,18 @@
   server verified live: health ok, /api/risk/ new shape, PUT live → 403 env gates
   (correct fail), PUT paper → 200, frontend serves toggle UI, broker_connected true
 
-## Active Work Claims (M5/M6 parallel tranche)
+## Active Work Claims
 
-| Claim | Owner | Scope (non-overlapping) |
-|---|---|---|
-| M5a — Market search + stock info | worker-data | `cudaquant/providers/**`, `cudaquant/data/universe.py` (new) |
-| M6a — Training service | worker-ml | `cudaquant/ml/training.py` (new), `cudaquant/ml/*` only |
-| M5b/M6a routes — Universe + Training API | worker-backend | `cudaquant/api/routes/data_routes.py`, `cudaquant/api/routes/universe_routes.py` (new), `cudaquant/api/routes/training_routes.py` (new) — owns all `api/routes/**` edits |
+(none — M5 + M6 complete, verified)
+
+## Shipped: M5 Market Intelligence + M6 Training Studio (5c1e2fb + UI)
+
+- **Market search + stock info:** `GET /api/data/search` + `GET /api/data/{symbol}/info` (FMP search-name/symbol + quote/profile/news with synthetic fallback)
+- **Universe CRUD:** `UniverseStore` + `/api/universe` (create/list/get/update/delete/add_symbols), persisted in DuckDB, singleton
+- **Training service:** `TrainingService` + `/api/training/run|/|{id}` (pooled feature matrix per-symbol, candidate registration)
+- **Market page:** search table + quote/profile/news cards + universe manager (create + add symbol)
+- **DataExplorer:** universe dropdown now drives symbol options
+- **Training Studio:** universe/custom symbols, model family toggle, feature checkboxes, horizon, run + history table with expand + model link; nav `Market` + `Training` added to `App.tsx` (15 routes)
 
 > UI (M5c/M6b) and LLM/execution slices (M7/M8) follow once these services land. Workers must read `cudaquant/providers/fmp_provider.py` + `finnhub_provider.py` for the wiring shape before editing.
 

@@ -6,6 +6,8 @@ import Dashboard from "./pages/Dashboard";
 import DataExplorer from "./pages/DataExplorer";
 import StrategyLab from "./pages/StrategyLab";
 import Experiments from "./pages/Experiments";
+import Training from "./pages/Training";
+import Market from "./pages/Market";
 import ModelRegistry from "./pages/ModelRegistry";
 import Regimes from "./pages/Regimes";
 import Execution from "./pages/Execution";
@@ -20,9 +22,11 @@ import { ErrorBoundary } from "./ErrorBoundary";
 
 const nav = [
   { to: "/", label: "Dashboard" },
+  { to: "/market", label: "Market" },
   { to: "/data", label: "Data" },
   { to: "/strategies", label: "Strategy Lab" },
   { to: "/experiments", label: "Experiments" },
+  { to: "/training", label: "Training" },
   { to: "/llm", label: "LLM Inbox" },
   { to: "/models", label: "Models" },
   { to: "/models/compare", label: "Model Compare" },
@@ -95,9 +99,11 @@ export default function App() {
             <ErrorBoundary>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/market" element={<Market />} />
               <Route path="/data" element={<DataExplorer />} />
               <Route path="/strategies" element={<StrategyLab />} />
               <Route path="/experiments" element={<Experiments />} />
+              <Route path="/training" element={<Training />} />
               <Route path="/llm" element={<LLMInbox />} />
               <Route path="/models" element={<ModelRegistry />} />
               <Route path="/models/compare" element={<ModelComparison />} />
