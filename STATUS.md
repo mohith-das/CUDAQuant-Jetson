@@ -1,14 +1,17 @@
 # STATUS.md — Current Repository State
 
-- **Last updated:** 2026-08-13 (paper/live toggle shipped: e86fc52 + 385edab)
+- **Last updated:** 2026-08-13 (Jetson deployed + boot-hang fix)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** 385edab (toggle complete: tests + UI + docs; pushed)
-- **Local tests:** 228 passed, 1 skipped, ruff 0; frontend `npm run build` clean
+- **Current commit:** ac74099 (CHANGELOG); Jetson running 198716c
+- **Local tests:** 234 passed, 1 skipped, ruff 0; frontend build clean
+- **Jetson:** deployed at 198716c via Tailscale IP (matt.local mDNS dead);
+  server verified live: health ok, /api/risk/ new shape, PUT live → 403 env gates
+  (correct fail), PUT paper → 200, frontend serves toggle UI, broker_connected true
 
 ## Active Work Claims
 
-(none — trading-mode toggle milestone complete)
+(none)
 
 ## Shipped this session: paper/live trading-mode toggle
 
