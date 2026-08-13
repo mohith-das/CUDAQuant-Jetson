@@ -83,11 +83,14 @@ class OrderService:
     def verify_live_connection(self) -> tuple[bool, str]:
         """Probe the live broker endpoint without placing any order.
 
-        Used by TradingModeService before a paper→live switch.
+        Used by TradingModeService before a paper→live switch. The probe is
+        bounded: AlpacaBroker.verify_connection() runs the SDK call in a
+        daemon thread with a join timeout, so a dead network can never hang
+        the switch request forever.
         """
         try:
             probe = self._broker_factory(False)
-            if getattr(probe, "is_connected", False):
+            if probe.verify_connection():
                 return True, "live broker connected"
             return (
                 False,

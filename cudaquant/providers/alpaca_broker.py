@@ -8,6 +8,7 @@ Environment: ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_PAPER
 """
 
 import logging
+import threading
 
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide as AlpacaSide
@@ -33,12 +34,19 @@ class AlpacaBroker(BrokerAdapter):
     when the user switches paper↔live from the UI.
 
     Authentication via ALPACA_API_KEY and ALPACA_SECRET_KEY from settings.
+
+    IMPORTANT: the constructor performs NO network calls (alpaca-py offers no
+    request timeout, so a synchronous verification could block app boot
+    indefinitely when the network is unreachable). Connection state is
+    verified lazily and cached; ``verify_connection()`` bounds the SDK call
+    with a daemon thread + join timeout.
     """
 
-    def __init__(self, paper: bool | None = None):
+    def __init__(self, paper: bool | None = None, verify_timeout: float = 8.0):
         key = settings.ALPACA_API_KEY
         secret = settings.ALPACA_SECRET_KEY
         paper = settings.ALPACA_PAPER if paper is None else paper
+        self._verify_timeout = verify_timeout
 
         if not key or not secret:
             self._client = None
@@ -51,18 +59,37 @@ class AlpacaBroker(BrokerAdapter):
             secret_key=secret,
             paper=paper,
         )
-        self._connected = self._verify_connection()
+        # None = not verified yet; resolved lazily on first is_connected read.
+        self._connected: bool | None = None
 
-    def _verify_connection(self) -> bool:
-        """Verify API credentials by fetching account."""
+    def verify_connection(self) -> bool:
+        """Bounded connection check via a daemon thread + join timeout.
+
+        Never blocks indefinitely: worst case is ``verify_timeout`` seconds.
+        Fail-closed — a timed-out or erroring verification reports False.
+        """
         if self._client is None:
+            self._connected = False
             return False
-        try:
-            self._client.get_account()
-            return True
-        except Exception as e:
-            logger.error("AlpacaBroker: connection verification failed: %s", e)
-            return False
+        if self._connected is not None:
+            return self._connected
+
+        result: dict = {"ok": False}
+
+        def _check() -> None:
+            try:
+                self._client.get_account()
+                result["ok"] = True
+            except Exception as e:
+                logger.error("AlpacaBroker: connection verification failed: %s", e)
+
+        thread = threading.Thread(target=_check, daemon=True)
+        thread.start()
+        thread.join(self._verify_timeout)
+        self._connected = bool(result["ok"])
+        if not self._connected:
+            logger.warning("AlpacaBroker: connection verification failed or timed out")
+        return self._connected
 
     def get_account(self) -> Account:
         if self._client is None:
@@ -168,4 +195,6 @@ class AlpacaBroker(BrokerAdapter):
 
     @property
     def is_connected(self) -> bool:
+        if self._connected is None:
+            return self.verify_connection()
         return self._connected
