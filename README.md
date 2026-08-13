@@ -157,8 +157,9 @@ ssh matt@matt.local "cd ~/cudaquant && bash setup.sh && bash start.sh"
 Copy `.env.example` to `.env` and configure:
 
 ```bash
-TRADING_MODE=paper           # paper | live
-ENABLE_LIVE_TRADING=no       # requires "I_UNDERSTAND_LIVE_TRADING_RISK"
+TRADING_MODE=paper           # paper | live — boot default for the effective mode
+ENABLE_LIVE_TRADING=no       # must equal exactly "I_UNDERSTAND_LIVE_TRADING_RISK" to enable live — a boolean "true" is not accepted
+ALPACA_PAPER=true            # boot-time broker endpoint default only; at runtime the active mode decides (paper → paper-api, live → api)
 ALPACA_API_KEY=              # optional — synthetic mode works without
 ALPACA_SECRET_KEY=           # optional
 LLM_API_KEY=                 # optional — LLM agent falls back to local analysis
@@ -166,19 +167,36 @@ LLM_API_KEY=                 # optional — LLM agent falls back to local analys
 
 ## Safety
 
-- **Live trading is OFF by default.** Requires `TRADING_MODE=live` AND `ENABLE_LIVE_TRADING=I_UNDERSTAND_LIVE_TRADING_RISK`.
+- **Live trading is OFF by default.** Trading mode is a persistent runtime toggle with two concepts: the **desired** mode (set from the UI, persisted in DuckDB) and the **effective** mode (what is actually active). At boot the effective mode starts from the persisted preference, but if live was requested and the `.env` gates are missing or the kill switch is engaged, the system fails safe to paper, records the reason, and sends a Telegram alert if configured. See "Switching paper ↔ live" below.
 - Kill switch blocks all orders when engaged.
 - Risk governor fails closed on any unknown state.
 - LLM is advisory only — cannot place orders, modify credentials, or bypass risk controls.
 - Paper/synthetic mode works fully without external API keys.
+
+## Switching paper ↔ live
+
+The toggle lives on the **Execution** page (API: `PUT /api/risk/trading-mode`); `GET /api/risk/` exposes the current state via `trading_mode` (effective), `desired_mode`, `mode_reason`, and `env_live_eligible`.
+
+**paper → live** requires all four, in order:
+1. `.env` gates: `TRADING_MODE=live` AND `ENABLE_LIVE_TRADING=I_UNDERSTAND_LIVE_TRADING_RISK` — a UI action alone can never enable live.
+2. Typed confirmation `"LIVE"` in the UI.
+3. Kill switch disarmed.
+4. Verified live broker connection (`ALPACA_API_KEY`/`ALPACA_SECRET_KEY` — paper-only keys cannot trade live).
+
+**live → paper** is instant, no confirmation.
+
+The desired mode persists in DuckDB (`trading_mode_state`) across restarts. At boot the effective mode starts from the persisted preference; if live was requested but the gates no longer hold or the kill switch is engaged, it boots in paper and records why in `mode_reason`.
+
+Live execution still requires all four execution gates on every order: config (effective mode), RiskGovernor, KillSwitch, and `SCHEDULER_AUTO_EXECUTE` for scheduled executions.
 
 ## Known Limitations
 
 - Float32 GPU precision: std/variance match within 5e-2 (documented)
 - GPU overhead dominates for n < ~50k
 - Alpaca/LLM providers require API keys (all core functionality works without)
-- UI not yet built (coming in next milestone)
-- No live trading integration tested
+- No guided first-run wizard beyond the Welcome page's step-by-step flow
+- Live-mode gate logic and switching are unit-tested; no real live-account
+  orders have been placed (paper only to date)
 
 ## Repository
 

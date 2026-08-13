@@ -1,14 +1,26 @@
 # STATUS.md — Current Repository State
 
-- **Last updated:** 2026-08-11 (Muse Spark audit, MCP fix)
+- **Last updated:** 2026-08-13 (trading-mode toggle milestone in flight)
 - **Current branch:** main (tracks `origin/main`)
 - **Remote:** `git@github.com:mohith-das/CUDAQuant-Jetson.git` (PRIVATE)
-- **Current commit:** 555b9cb (MCP FastMCP fix + audit reconciliation)
-- **Prior verified HEAD:** 6952c86 (Telegram interactive bot + design pass, screenshots)
-- **Working tree:** clean (after 555b9cb); `docs/claude_export_temp.md` untracked export only
-- **Jetson verified at:** 0a44707 (scripts/e2e_test.sh) — commits after 0a44707 NOT yet synced or e2e-verified on-device
-- **Local tests:** 200 passed, 1 skipped (1 GPU parity skip off-Jetson), ruff 0 — `pytest -q` 2026-08-11 on macOS 3.12.12
-- **MCP:** 3/3 integration tests now pass after FastMCP fix (was 3 failures at 6952c86)
+- **Current commit:** e86fc52 (paper/live toggle core: TradingModeService, gates, PUT /api/risk/trading-mode)
+- **Local tests:** 201 passed, 1 skipped, ruff 0 (core committed at e86fc52)
+
+## Active Work Claims (architect-owned coordination)
+
+| Claim | Owner | Scope |
+|---|---|---|
+| Trading-mode toggle — core backend | architect (DONE, e86fc52) | trading_mode.py, order_service, settings, kill_switch, alpaca_broker, risk/system/health/chat routes, app.py, telegram_bot, registry, .env.example, test updates |
+| Trading-mode toggle — new tests | worker-tests (RUNNING) | tests/unit/test_trading_mode.py, tests/integration/test_trading_mode_api.py |
+| Trading-mode toggle — UI | worker-ui (RUNNING) | frontend/src/pages/Execution.tsx, Dashboard.tsx, Settings.tsx only |
+| Trading-mode toggle — README safety docs | worker-docs (RUNNING) | README.md only |
+
+## In-flight: paper/live toggle (user requested; decisions locked)
+
+- Persisted desired mode (DuckDB `trading_mode_state`); boot re-validates .env gates → falls back paper + Telegram alert
+- paper→live: .env ack + typed `LIVE` confirm + kill switch disarmed + live broker probe; live→paper instant
+- `ENABLE_LIVE_TRADING` is now a string ack; `ALPACA_PAPER` = boot default only
+- Workers: tests / UI / README running in parallel; integration after.
 
 ## What is DONE and verified (local)
 

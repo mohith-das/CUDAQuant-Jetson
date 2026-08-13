@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../api";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { AuthErrorBox, isAuthError } from "../AuthErrorBox";
 
 export default function Dashboard() {
@@ -10,9 +11,9 @@ export default function Dashboard() {
   const { data: risk, error: riskErr } = useQuery({ queryKey: ["risk"], queryFn: () => apiFetch<Record<string,unknown>>("/api/risk/"), refetchInterval: 5000 });
   const { data: dispatch } = useQuery({ queryKey: ["dispatch-stats"], queryFn: () => apiFetch<Record<string,unknown>>("/api/system/dispatch-stats"), refetchInterval: 10000 });
 
-  if (isAuthError(sysErr) || isAuthError(riskErr)) return <AuthErrorBox />;
-
   const [ksConfirm, setKsConfirm] = useState("");
+
+  if (isAuthError(sysErr) || isAuthError(riskErr)) return <AuthErrorBox />;
 
   const checks = readiness?.checks as Record<string,unknown> | undefined;
   const ks = risk as Record<string,unknown> | undefined;
@@ -41,8 +42,21 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <h3>Trading</h3>
-          <p>Mode: <strong>{String(checks?.trading_mode ?? "?")}</strong></p>
-          <p>Live: {checks?.live_trading_enabled ? <span className="pill pill-warning">ENABLED</span> : <span className="pill pill-positive">Disabled</span>}</p>
+          <p>
+            Mode:{" "}
+            {ks?.trading_mode === "live" ? (
+              <span className="pill pill-warning">LIVE</span>
+            ) : ks?.trading_mode === "paper" ? (
+              <span className="pill pill-positive">Paper</span>
+            ) : (
+              <span className="pill">—</span>
+            )}{" "}
+            <Link to="/execution" style={{ color: "var(--accent)" }}>Manage</Link>
+          </p>
+          {ks?.mode_reason ? (
+            <p className="fg-muted" style={{ fontSize: "var(--text-eyebrow)" }}>{String(ks.mode_reason)}</p>
+          ) : null}
+          <p>Live: {ks?.live_trading_enabled ? <span className="pill pill-warning">ENABLED</span> : <span className="pill pill-positive">Disabled</span>}</p>
           <p>Broker: {ks?.broker_connected ? <span className="pill pill-positive">Connected</span> : <span className="pill pill-negative">Disconnected</span>}</p>
         </div>
         <div className="card danger">

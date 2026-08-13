@@ -1,6 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "../api";
+import { apiFetch, queryClient } from "../api";
 import { useState } from "react";
+
+// apiFetch throws `API 403: {"detail": "..."}` — surface the detail, not the raw body.
+function apiDetail(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  const m = /^API 403:\s*(.*)$/s.exec(msg);
+  if (m) {
+    try {
+      const body = JSON.parse(m[1]) as { detail?: unknown };
+      if (typeof body.detail === "string") return body.detail;
+    } catch {
+      // not JSON — fall through to the raw message
+    }
+  }
+  return msg;
+}
 
 export default function Execution() {
   const { data: risk, error: riskError } = useQuery({
@@ -21,9 +36,17 @@ export default function Execution() {
   const [side, setSide] = useState("buy");
   const [msg, setMsg] = useState("");
 
+  const [liveConfirm, setLiveConfirm] = useState("");
+  const [modeMsg, setModeMsg] = useState("");
+  const [modeErr, setModeErr] = useState("");
+
   const ks = risk as Record<string,unknown> | undefined;
   const killEngaged = ks?.kill_switch_engaged as boolean;
   const brokerOk = ks?.broker_connected as boolean;
+  const tradingMode = ks?.trading_mode as string | undefined;
+  const desiredMode = ks?.desired_mode as string | undefined;
+  const modeReason = ks?.mode_reason as string | null | undefined;
+  const envLiveEligible = ks?.env_live_eligible as boolean | undefined;
   const disabled = killEngaged || !brokerOk;
   const disableReason = killEngaged
     ? "Kill switch is engaged"
@@ -44,11 +67,89 @@ export default function Execution() {
     }
   };
 
+  const switchToLive = async () => {
+    setModeMsg(""); setModeErr("");
+    try {
+      const r = await apiFetch<Record<string,unknown>>("/api/risk/trading-mode", {
+        method: "PUT",
+        body: JSON.stringify({ mode: "live", confirm: liveConfirm }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["risk"] });
+      setLiveConfirm("");
+      setModeMsg(String(r.message ?? "switched to live mode"));
+    } catch (e: unknown) {
+      setModeErr(apiDetail(e));
+    }
+  };
+
+  const switchToPaper = async () => {
+    setModeMsg(""); setModeErr("");
+    try {
+      const r = await apiFetch<Record<string,unknown>>("/api/risk/trading-mode", {
+        method: "PUT",
+        body: JSON.stringify({ mode: "paper" }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["risk"] });
+      setModeMsg(String(r.message ?? "switched to paper mode"));
+    } catch (e: unknown) {
+      setModeErr(apiDetail(e));
+    }
+  };
+
   if (riskError) return <div className="error-box">Cannot connect to API — check auth token</div>;
 
   return (
     <div>
       <h2>Execution</h2>
+
+      <div className="card" style={{ marginBottom: "var(--space-6)" }}>
+        <h3>Trading Mode</h3>
+        <p>
+          Mode:{" "}
+          {tradingMode === "live" ? (
+            <span className="pill pill-warning">LIVE</span>
+          ) : tradingMode === "paper" ? (
+            <span className="pill pill-positive">Paper</span>
+          ) : (
+            <span className="pill">—</span>
+          )}
+        </p>
+        {modeReason ? (
+          <p className="warning-text" style={{ marginTop: "var(--space-2)" }}>
+            Desired {String(desiredMode ?? "?")} but running {String(tradingMode ?? "?")} — {modeReason}
+          </p>
+        ) : null}
+        {tradingMode === "paper" ? (
+          <div style={{ marginTop: "var(--space-3)" }}>
+            {envLiveEligible === false ? (
+              <p className="fg-muted" style={{ fontSize: "var(--text-eyebrow)", marginBottom: "var(--space-2)" }}>
+                Live unavailable — set TRADING_MODE=live and ENABLE_LIVE_TRADING=I_UNDERSTAND_LIVE_TRADING_RISK in .env
+              </p>
+            ) : null}
+            <input
+              type="text"
+              placeholder='Type "LIVE" to confirm'
+              value={liveConfirm}
+              onChange={(e) => setLiveConfirm(e.target.value)}
+            />
+            <button className="btn-danger" onClick={switchToLive} disabled={liveConfirm !== "LIVE"}>
+              Switch to Live
+            </button>
+          </div>
+        ) : tradingMode === "live" ? (
+          <div style={{ marginTop: "var(--space-3)" }}>
+            <button onClick={switchToPaper}>Switch to Paper</button>
+          </div>
+        ) : null}
+        {modeErr && <p className="mono negative" style={{ marginTop: "var(--space-2)" }}>{modeErr}</p>}
+        {modeMsg && <p className="mono" style={{ marginTop: "var(--space-2)" }}>{modeMsg}</p>}
+        <p className="fg-muted" style={{ fontSize: "var(--text-eyebrow)", marginTop: "var(--space-3)" }}>
+          Mode persists across restarts. Switching to live requires TRADING_MODE=live +
+          ENABLE_LIVE_TRADING=I_UNDERSTAND_LIVE_TRADING_RISK in .env, a disarmed kill switch, and verified
+          live broker credentials.
+        </p>
+      </div>
+
       <div className="cards">
         <div className="card">
           <h3>Account</h3>

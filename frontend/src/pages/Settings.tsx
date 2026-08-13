@@ -63,7 +63,7 @@ export default function Settings() {
           <h3>Security</h3>
           <p>API auth: <span className="pill pill-positive">Enabled</span></p>
           <ul style={{ color: "var(--fg-muted)", paddingLeft: "var(--space-4)", marginTop: "var(--space-2)" }}>
-            <li>TRADING_MODE / ENABLE_LIVE_TRADING — UI only</li>
+            <li>TRADING_MODE / ENABLE_LIVE_TRADING — .env gates; runtime switch on the Execution page (persisted)</li>
             <li>SCHEDULER_AUTO_EXECUTE — UI only</li>
             <li>Kill switch disengage — UI only</li>
           </ul>

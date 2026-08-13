@@ -121,10 +121,14 @@ class TradingModeService:
         """Switch trading mode. Returns ``(ok, message)``.
 
         paper→live is gated (env ack + confirmation phrase + kill switch +
-        live broker connection). live→paper is always allowed.
+        live broker connection). live→paper is always allowed. Switching to
+        the already-active mode is an idempotent no-op.
         """
         if mode not in VALID_MODES:
             return False, f"invalid mode: {mode} (expected paper or live)"
+
+        if self._state.effective == mode and self._state.desired == mode:
+            return True, f"already in {mode} mode"
 
         if mode == "live":
             ok, reason = self.env_live_eligible()
@@ -138,9 +142,6 @@ class TradingModeService:
                 ok, reason = self._order_service.verify_live_connection()
                 if not ok:
                     return False, reason
-
-        if self._state.effective == mode and self._state.desired == mode:
-            return True, f"already in {mode} mode"
 
         # Apply: update the order service (governor + broker), persist, alert.
         if self._order_service is not None:
@@ -215,7 +216,12 @@ class TradingModeService:
             raise
 
     def _load_desired(self) -> str:
-        """Persisted preference; falls back to env TRADING_MODE."""
+        """Persisted preference; falls back to env TRADING_MODE.
+
+        Fail-safe: any unreadable or malformed persisted row logs an error and
+        falls back — a corrupted preference must never block boot or crash the
+        service, and the safe fallback is the env value (paper by default).
+        """
         if not self._db_path:
             return settings.TRADING_MODE
         import duckdb
@@ -228,9 +234,12 @@ class TradingModeService:
             con.close()
             if row:
                 data = json.loads(row[0])
-                mode = data.get("mode")
+                mode = data.get("mode") if isinstance(data, dict) else None
                 if mode in VALID_MODES:
                     return mode
+                logger.error(
+                    "Trading mode persisted row malformed (%r) — falling back to env", data
+                )
         except Exception as e:
             logger.error("Trading mode load failed: %s", e, exc_info=True)
             raise
