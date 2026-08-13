@@ -9,6 +9,8 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from cudaquant.risk.kill_switch import LIVE_ACK_VALUE
+
 
 class Settings(BaseSettings):
     """Runtime configuration for CUDAQuant-Jetson.
@@ -26,7 +28,11 @@ class Settings(BaseSettings):
 
     # ── Trading mode ──────────────────────────────────────────────────────────
     TRADING_MODE: Literal["paper", "live"] = "paper"
-    ENABLE_LIVE_TRADING: bool = False
+    # Acknowledgement string. Live trading is only eligible when this equals
+    # KillSwitch.LIVE_ACK_VALUE ("I_UNDERSTAND_LIVE_TRADING_RISK") AND
+    # TRADING_MODE=live. The runtime TradingModeService may still keep the
+    # effective mode on paper until all runtime gates pass.
+    ENABLE_LIVE_TRADING: str = ""
 
     # ── Alpaca ────────────────────────────────────────────────────────────────
     ALPACA_API_KEY: str | None = None
@@ -85,8 +91,15 @@ class Settings(BaseSettings):
 
     @property
     def live_trading_enabled(self) -> bool:
-        """Live trading is active only when explicitly enabled AND mode is live."""
-        return self.ENABLE_LIVE_TRADING and self.TRADING_MODE == "live"
+        """Live trading is active only when explicitly enabled AND mode is live.
+
+        Boot-time semantics (env/.env only) — the runtime TradingModeService
+        is the authority for the *effective* mode once the process is running.
+        """
+        return (
+            self.TRADING_MODE == "live"
+            and self.ENABLE_LIVE_TRADING == LIVE_ACK_VALUE
+        )
 
 
 settings = Settings()

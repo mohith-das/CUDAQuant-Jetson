@@ -75,3 +75,12 @@ class KillSwitch:
         mode = os.environ.get(LIVE_MODE_ENV, "").strip().lower()
         ack = os.environ.get(LIVE_ACK_ENV, "").strip()
         return mode == LIVE_MODE_VALUE and ack == LIVE_ACK_VALUE
+
+    @staticmethod
+    def is_live_ack_enabled() -> bool:
+        """Check the acknowledgement gate alone (TRADING_MODE-independent).
+
+        Used by OrderService gate 1: an order in live mode requires the .env
+        acknowledgement regardless of how the runtime mode was set.
+        """
+        return os.environ.get(LIVE_ACK_ENV, "").strip() == LIVE_ACK_VALUE

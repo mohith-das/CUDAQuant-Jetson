@@ -24,17 +24,21 @@ logger = logging.getLogger(__name__)
 class AlpacaBroker(BrokerAdapter):
     """Alpaca trading API broker — paper or live.
 
-    Paper/live is determined by settings.ALPACA_PAPER:
+    Paper/live is chosen per-instance via the ``paper`` constructor argument:
     - True → https://paper-api.alpaca.markets
     - False → https://api.alpaca.markets
+
+    Defaults to settings.ALPACA_PAPER (boot-time default). The runtime
+    TradingModeService rebuilds this broker with the effective mode's flag
+    when the user switches paper↔live from the UI.
 
     Authentication via ALPACA_API_KEY and ALPACA_SECRET_KEY from settings.
     """
 
-    def __init__(self):
+    def __init__(self, paper: bool | None = None):
         key = settings.ALPACA_API_KEY
         secret = settings.ALPACA_SECRET_KEY
-        paper = settings.ALPACA_PAPER
+        paper = settings.ALPACA_PAPER if paper is None else paper
 
         if not key or not secret:
             self._client = None

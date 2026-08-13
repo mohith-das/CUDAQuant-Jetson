@@ -42,12 +42,15 @@ def health() -> dict:
 def readiness() -> dict:
     """Readiness probe — reflects real dependency/config state."""
     gpu = _check_gpu()
+    from cudaquant.execution.trading_mode import get_shared_trading_mode
+    tm = get_shared_trading_mode(settings.DUCKDB_PATH).get_state()
     return {
         "ready": True,
         "checks": {
             "config_loaded": True,
-            "trading_mode": settings.TRADING_MODE,
-            "live_trading_enabled": settings.live_trading_enabled,
+            "trading_mode": tm["effective_mode"],
+            "desired_mode": tm["desired_mode"],
+            "live_trading_enabled": tm["effective_mode"] == "live",
             "cuda_enabled": settings.CUDA_ENABLED,
             "gpu_active": gpu["gpu_active"],
             "ml_gpu_active": gpu["ml_gpu_active"],

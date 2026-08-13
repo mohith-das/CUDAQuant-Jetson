@@ -2,16 +2,21 @@
 
 Every order, paper or live, must pass through this service's three gates
 in order:
-  1. Config gate: TRADING_MODE + ENABLE_LIVE_TRADING
+  1. Config gate: effective trading mode (TradingModeService or TRADING_MODE)
   2. RiskGovernor.pre_trade_check()
   3. KillSwitch.is_engaged()
 
 No other code path may call AlpacaBroker.submit_order() directly.
+
+The service also owns the runtime mode switch plumbing: ``set_mode()``
+rebuilds the broker for the new mode's endpoint (paper/live) and flips the
+governor's live flag, so switching from the UI is atomic w.r.t. order flow.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from cudaquant.config.settings import settings
@@ -21,6 +26,15 @@ from cudaquant.risk.governor import RiskGovernor
 from cudaquant.risk.kill_switch import KillSwitch
 
 logger = logging.getLogger(__name__)
+
+
+def _default_mode_provider() -> str:
+    """Boot-time fallback: read TRADING_MODE from settings (env/.env only).
+
+    The shared TradingModeService replaces this at runtime wiring
+    (build_order_service) so the *effective* persisted mode is used.
+    """
+    return settings.TRADING_MODE
 
 
 class OrderService:
@@ -35,6 +49,8 @@ class OrderService:
         broker: AlpacaBroker | None = None,
         governor: RiskGovernor | None = None,
         kill_switch: KillSwitch | None = None,
+        mode_provider: Callable[[], str] | None = None,
+        broker_factory: Callable[[bool], Any] | None = None,
     ):
         self._broker = broker or AlpacaBroker()
         self._governor = governor or RiskGovernor({
@@ -46,6 +62,41 @@ class OrderService:
             "symbol_allowlist": None,
         })
         self._kill_switch = kill_switch or KillSwitch(settings.KILL_SWITCH_FILE)
+        self._mode_provider = mode_provider
+        self._broker_factory = broker_factory or (lambda paper: AlpacaBroker(paper=paper))
+        self._runtime_mode: str | None = None
+
+    # ── Runtime mode switch plumbing ─────────────────────────────────────────
+
+    def set_mode(self, mode: str, paper: bool) -> None:
+        """Apply a runtime mode switch: rebuild broker + flip governor flag.
+
+        ``paper`` selects the broker endpoint for the new mode. The governor's
+        live flag is set via ``set_live_mode``, which re-verifies the
+        environment gates itself (never enabling live casually).
+        """
+        self._runtime_mode = mode
+        self._governor.set_live_mode(mode == "live")
+        self._broker = self._broker_factory(paper)
+        logger.info("OrderService mode applied: mode=%s paper=%s", mode, paper)
+
+    def verify_live_connection(self) -> tuple[bool, str]:
+        """Probe the live broker endpoint without placing any order.
+
+        Used by TradingModeService before a paper→live switch.
+        """
+        try:
+            probe = self._broker_factory(False)
+            if getattr(probe, "is_connected", False):
+                return True, "live broker connected"
+            return (
+                False,
+                "live broker not connected — check ALPACA_API_KEY/ALPACA_SECRET_KEY "
+                "(paper-only keys cannot trade live)",
+            )
+        except Exception as e:
+            logger.error("Live broker probe failed: %s", e)
+            return False, f"live broker probe failed: {e}"
 
     def submit_order(self, order: Order) -> tuple[bool, str, str | None]:
         """Submit an order through all safety gates.
@@ -54,17 +105,16 @@ class OrderService:
             (success, message, order_id_or_none)
         """
         # ── Gate 1: Config gate ──────────────────────────────────────────
-        mode = settings.TRADING_MODE
-        live_enabled = settings.live_trading_enabled
+        mode = self._mode_provider() if self._mode_provider else _default_mode_provider()
 
         if mode not in ("paper", "live"):
             return False, f"invalid TRADING_MODE: {mode}", None
 
-        if mode == "live" and not live_enabled:
-            return False, "live trading not enabled (ENABLE_LIVE_TRADING=False)", None
-
-        if mode == "paper" and settings.ENABLE_LIVE_TRADING:
-            return False, "paper mode but ENABLE_LIVE_TRADING=True — inconsistent config", None
+        if mode == "live" and not KillSwitch.is_live_ack_enabled():
+            return False, (
+                "live trading not enabled "
+                "(ENABLE_LIVE_TRADING ack missing in .env)"
+            ), None
 
         # ── Gate 2: Risk Governor ────────────────────────────────────────
         # Fetch account state once — needed for both ref_price and risk check
@@ -160,3 +210,31 @@ class OrderService:
     @property
     def is_broker_connected(self) -> bool:
         return self._broker.is_connected
+
+
+# ── Production wiring ────────────────────────────────────────────────────────
+
+_shared_order_service: OrderService | None = None
+
+
+def build_order_service(db_path: str | None = None) -> OrderService:
+    """Build (once) the shared OrderService bound to the TradingModeService.
+
+    The mode provider reads the *effective* runtime mode so gate 1 follows
+    UI switches; the broker factory rebuilds the broker for the new mode's
+    endpoint on switch. The TradingModeService gets a back-reference so
+    ``switch()`` can drive this service and probe the live broker.
+    """
+    global _shared_order_service
+    if _shared_order_service is not None:
+        return _shared_order_service
+
+    from cudaquant.execution.trading_mode import get_shared_trading_mode
+
+    trading_mode = get_shared_trading_mode(db_path)
+    _shared_order_service = OrderService(
+        mode_provider=lambda: trading_mode.effective_mode,
+        broker_factory=lambda paper: AlpacaBroker(paper=paper),
+    )
+    trading_mode.bind_order_service(_shared_order_service)
+    return _shared_order_service

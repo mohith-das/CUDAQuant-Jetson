@@ -50,10 +50,18 @@ def _check_lan_safety() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _check_lan_safety()
+    # Wire the shared TradingModeService + OrderService before anything else,
+    # so routes/scheduler/platform tools all observe one effective mode.
+    from cudaquant.execution.order_service import build_order_service
+    from cudaquant.execution.trading_mode import get_shared_trading_mode
+
+    trading_mode = get_shared_trading_mode(settings.DUCKDB_PATH)
+    build_order_service(settings.DUCKDB_PATH)
     logger.info(
-        "CUDAQuant API starting (mode=%s, live_trading=%s, host=%s)",
-        settings.TRADING_MODE,
-        settings.live_trading_enabled,
+        "CUDAQuant API starting (desired=%s, effective=%s, live_trading=%s, host=%s)",
+        trading_mode.state.desired,
+        trading_mode.effective_mode,
+        trading_mode.effective_mode == "live",
         settings.HOST,
     )
     # Start scheduler
@@ -70,7 +78,9 @@ async def lifespan(app: FastAPI):
 
     # Log restart for crash recovery visibility
     from cudaquant.alerts.telegram import TelegramAlerter
-    TelegramAlerter().send(f"CUDAQuant server started (mode={settings.TRADING_MODE})")
+    TelegramAlerter().send(
+        f"CUDAQuant server started (mode={trading_mode.effective_mode})"
+    )
 
     yield
     tg_task.cancel()

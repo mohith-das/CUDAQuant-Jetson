@@ -226,10 +226,9 @@ def submit_paper_order(symbol: str, side: str, qty: float,
     Goes through OrderService → config gate → RiskGovernor → KillSwitch.
     Returns the same (success, message, order_id) tuple as the API.
     """
-    if settings.TRADING_MODE != "paper":
-        return {"success": False, "message": "submit_paper_order requires TRADING_MODE=paper"}
-    if settings.live_trading_enabled:
-        return {"success": False, "message": "paper mode with ENABLE_LIVE_TRADING=True — inconsistent"}
+    from cudaquant.execution.trading_mode import effective_trading_mode
+    if effective_trading_mode() != "paper":
+        return {"success": False, "message": "submit_paper_order requires paper mode"}
 
     svc = _get_shared_order_service()
 

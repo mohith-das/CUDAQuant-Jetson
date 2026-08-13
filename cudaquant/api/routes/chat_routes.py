@@ -73,9 +73,12 @@ def _build_system_prompt() -> str:
     except Exception:
         pass
 
+    from cudaquant.execution.trading_mode import get_shared_trading_mode
+    tm = get_shared_trading_mode(settings.DUCKDB_PATH).get_state()
+
     return SYSTEM_PROMPT.format(
-        trading_mode=settings.TRADING_MODE,
-        live_enabled=settings.live_trading_enabled,
+        trading_mode=tm["effective_mode"],
+        live_enabled=tm["effective_mode"] == "live",
         gpu_active=gpu["gpu_active"],
         ml_gpu_active=gpu["ml_gpu_active"],
     )

@@ -32,10 +32,15 @@ def system_info():
     except Exception:
         gpu["ml_gpu_active"] = False
 
+    from cudaquant.execution.trading_mode import get_shared_trading_mode
+    tm = get_shared_trading_mode(settings.DUCKDB_PATH).get_state()
+
     return {
         "version": "0.1.0",
         "uptime_seconds": round(time.time() - _start_time, 1),
-        "trading_mode": settings.TRADING_MODE,
+        "trading_mode": tm["effective_mode"],
+        "desired_mode": tm["desired_mode"],
+        "mode_reason": tm["mode_reason"],
         "cuda_enabled": settings.CUDA_ENABLED,
         "gpu_active": gpu.get("gpu_active", False),
         "ml_gpu_active": gpu.get("ml_gpu_active", False),

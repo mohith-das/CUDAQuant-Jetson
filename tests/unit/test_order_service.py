@@ -90,7 +90,8 @@ class TestOrderServiceGates:
     def test_gate1_live_mode_without_ack_rejected(
         self, mock_broker, valid_order, permissive_governor, monkeypatch,
     ):
-        """TRADING_MODE='live' + ENABLE_LIVE_TRADING=False → rejected."""
+        """TRADING_MODE='live' + no .env acknowledgement → rejected."""
+        monkeypatch.delenv("ENABLE_LIVE_TRADING", raising=False)
         monkeypatch.setattr("cudaquant.execution.order_service.settings",
                             _make_settings(TRADING_MODE="live", ENABLE_LIVE_TRADING=False))
 
@@ -101,19 +102,38 @@ class TestOrderServiceGates:
         assert "live trading not enabled" in msg
         mock_broker.submit_order.assert_not_called()
 
-    def test_gate1_paper_mode_with_live_ack_rejected(
+    def test_gate1_paper_mode_allowed_even_with_live_ack(
         self, mock_broker, valid_order, permissive_governor, monkeypatch,
     ):
-        """TRADING_MODE='paper' + ENABLE_LIVE_TRADING=True → inconsistent config."""
+        """Paper mode must work regardless of the .env acknowledgement.
+
+        Regression guard for the runtime-toggle design: the old env-only
+        check rejected paper orders whenever ENABLE_LIVE_TRADING was set,
+        which would have made paper trading impossible after acknowledging
+        live trading in .env.
+        """
         monkeypatch.setattr("cudaquant.execution.order_service.settings",
                             _make_settings(TRADING_MODE="paper", ENABLE_LIVE_TRADING=True))
 
         service = OrderService(broker=mock_broker, governor=permissive_governor,
                                kill_switch=KillSwitch("/tmp/nonexistent"))
         ok, msg, _ = service.submit_order(valid_order)
-        assert not ok
-        assert "inconsistent config" in msg
-        mock_broker.submit_order.assert_not_called()
+        assert ok, f"Paper mode must allow orders with ack set, got: {msg}"
+        mock_broker.submit_order.assert_called_once()
+
+    def test_gate1_live_mode_with_env_ack_allows(
+        self, mock_broker, valid_order, permissive_governor, monkeypatch,
+    ):
+        """Live mode + real .env acknowledgement in the process environment → allowed."""
+        monkeypatch.setenv("ENABLE_LIVE_TRADING", "I_UNDERSTAND_LIVE_TRADING_RISK")
+        monkeypatch.setattr("cudaquant.execution.order_service.settings",
+                            _make_settings(TRADING_MODE="live", ENABLE_LIVE_TRADING=True))
+
+        service = OrderService(broker=mock_broker, governor=permissive_governor,
+                               kill_switch=KillSwitch("/tmp/nonexistent"))
+        ok, msg, _ = service.submit_order(valid_order)
+        assert ok, f"Live mode with env ack should pass gate 1, got: {msg}"
+        mock_broker.submit_order.assert_called_once()
 
     # ── Gate 2: RiskGovernor ────────────────────────────────────────────
 

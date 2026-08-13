@@ -117,11 +117,14 @@ async def _handle_message(client: httpx.AsyncClient, base_url: str, msg: dict):
 
         tool_desc = "\n".join(f"- {name}: {fn.__doc__ or ''}" for name, fn in READ_TOOLS.items())
 
+        from cudaquant.execution.trading_mode import effective_trading_mode
+        mode = effective_trading_mode()
+
         system_prompt = (
             "You are CUDAQuant's Telegram assistant. You can discuss platform state and "
             "use these read-only tools:\n"
             f"{tool_desc}\n\n"
-            f"Trading mode: {settings.TRADING_MODE}. Live: {settings.live_trading_enabled}.\n"
+            f"Trading mode: {mode}. Live: {mode == 'live'}.\n"
             "Be concise. If asked to execute actions, explain how via the UI."
         )
 

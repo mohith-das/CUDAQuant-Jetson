@@ -66,9 +66,10 @@ def test_trading_mode_defaults_to_paper(clean_env):
     assert Settings().TRADING_MODE == "paper"
 
 
-def test_enable_live_trading_defaults_to_false(clean_env):
-    settings = Settings()
-    assert settings.ENABLE_LIVE_TRADING is False
+def test_enable_live_trading_defaults_to_empty(clean_env):
+    """The acknowledgement must default to empty (live never eligible)."""
+    settings = Settings(_env_file=None)
+    assert settings.ENABLE_LIVE_TRADING == ""
 
 
 def test_live_trading_off_by_default(clean_env):
@@ -76,17 +77,20 @@ def test_live_trading_off_by_default(clean_env):
     assert Settings().live_trading_enabled is False
 
 
+ACK = "I_UNDERSTAND_LIVE_TRADING_RISK"
+
+
 @pytest.mark.parametrize(
     ("trading_mode", "enable_live", "expected"),
     [
-        ("paper", False, False),
-        ("paper", True, False),
-        ("live", False, False),
-        ("live", True, True),
+        ("paper", "", False),
+        ("paper", ACK, False),
+        ("live", "", False),
+        ("live", ACK, True),
     ],
 )
 def test_live_trading_requires_both_gates(clean_env, trading_mode, enable_live, expected):
-    """Live trading is active only when mode is live AND explicitly enabled."""
+    """Live trading is active only when mode is live AND the ack string is set."""
     settings = Settings(TRADING_MODE=trading_mode, ENABLE_LIVE_TRADING=enable_live)
     assert settings.live_trading_enabled is expected
 

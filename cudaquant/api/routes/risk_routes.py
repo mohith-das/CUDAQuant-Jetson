@@ -7,26 +7,56 @@ from cudaquant.alerts.telegram import TelegramAlerter
 from cudaquant.api.auth import require_auth
 from cudaquant.config.settings import settings
 from cudaquant.data.schemas import Order, OrderSide, OrderType
-from cudaquant.execution.order_service import OrderService
+from cudaquant.execution.order_service import build_order_service
+from cudaquant.execution.trading_mode import get_shared_trading_mode
 
 risk_router = APIRouter(prefix="/api/risk", tags=["risk"], dependencies=[Depends(require_auth)])
 exec_router = APIRouter(prefix="/api/execution", tags=["execution"], dependencies=[Depends(require_auth)])
 
-_order_service = OrderService()
+# Shared OrderService — bound to the shared TradingModeService (see
+# build_order_service) so mode switches rebuild the broker and gate 1 follows
+# the effective mode.
+_order_service = build_order_service(settings.DUCKDB_PATH)
 
 
 # ── Risk routes ──────────────────────────────────────────────────────────────
 
 @risk_router.get("/")
 def risk_status():
-    """Get current risk state."""
+    """Get current risk + trading-mode state."""
     ks = _order_service.get_kill_switch_state()
+    tm = get_shared_trading_mode(settings.DUCKDB_PATH).get_state()
     return {
-        "trading_mode": settings.TRADING_MODE,
-        "live_trading_enabled": settings.live_trading_enabled,
+        "trading_mode": tm["effective_mode"],
+        "desired_mode": tm["desired_mode"],
+        "mode_reason": tm["mode_reason"],
+        "env_live_eligible": tm["env_live_eligible"],
+        "live_trading_enabled": tm["effective_mode"] == "live",
         "kill_switch_engaged": ks["engaged"],
         "kill_switch_reason": ks.get("reason"),
         "broker_connected": _order_service.is_broker_connected,
+    }
+
+
+@risk_router.put("/trading-mode")
+def set_trading_mode(payload: dict):
+    """Switch trading mode: paper or live.
+
+    live→paper: always allowed.
+    paper→live: requires the .env acknowledgement gates, ``confirm="LIVE"``,
+    a disarmed kill switch, and a verified live broker connection.
+    """
+    mode = payload.get("mode", "")
+    confirm = payload.get("confirm", "")
+    tm = get_shared_trading_mode(settings.DUCKDB_PATH)
+    ok, message = tm.switch(mode, confirm=confirm)
+    if not ok:
+        raise HTTPException(403, message)
+    return {
+        "success": True,
+        "effective_mode": tm.effective_mode,
+        "desired_mode": tm.state.desired,
+        "message": message,
     }
 
 
