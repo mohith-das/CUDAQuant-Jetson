@@ -13,6 +13,7 @@ from cudaquant.ml.models import (
     prepare_targets,
 )
 from cudaquant.ml.registry import ModelRecord, ModelRegistry, ModelStatus
+from cudaquant.ml.training import TrainingRun, TrainingService, get_shared_training_service
 
 __all__ = [
     "TSLogisticRegression",
@@ -26,4 +27,7 @@ __all__ = [
     "ModelRecord",
     "ModelRegistry",
     "ModelStatus",
+    "TrainingRun",
+    "TrainingService",
+    "get_shared_training_service",
 ]
