@@ -159,3 +159,20 @@
   short-circuit, malformed persisted-row fallback.
 - Verified: 228 passed / 1 skipped, ruff 0, frontend builds. Pushed to origin/main.
 - Follow-ups: app-import AlpacaBroker network call (pre-existing), Jetson sync to 385edab.
+
+## 2026-08-13 (later) — Jetson deploy + boot-hang root-cause fix (af11c0a, 198716c)
+- Question asked: is the toggle running on the Jetson? Reality check: server was up
+  via Tailscale (100.109.22.68:8000) but on OLD code (repo @ 07484d4, /api/risk/
+  old shape, PUT trading-mode → 405).
+- Deploy: SSH via Tailscale IP (matt.local mDNS dead), fetch + reset --hard origin/main
+  (Jetson history had diverged pre-e32da95), rsync frontend/dist.
+- First restart hung at import: faulthandler stack dump → AlpacaBroker._verify_connection()
+  get_account() blocking forever (alpaca-py has NO request timeout). Pre-existing
+  pattern, made fatal by network state. Root-cause fix: constructor does no network;
+  verify_connection() = daemon thread + join timeout (8s), fail-closed; success cached,
+  failure NOT cached (transient blip recoverable). +6 hermetic tests.
+- Live verification on Jetson @ 198716c: health ok, /api/risk/ new shape
+  (broker_connected true after network recovered), PUT live → 403 env gates
+  (correct), PUT paper → 200. Frontend dist serves "Switch to Live" UI.
+- Lesson: pkill -f self-matches the remote bash -c — use '[u]vicorn' bracket pattern;
+  separate git-sync from kill in different ssh calls.
