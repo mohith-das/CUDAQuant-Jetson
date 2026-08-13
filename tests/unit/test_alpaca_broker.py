@@ -87,6 +87,22 @@ def test_verify_connection_error_reports_false(monkeypatch, fake_creds):
     assert broker.verify_connection() is False
 
 
+def test_verify_connection_failure_not_cached(monkeypatch, fake_creds):
+    """A failed verification is retried on the next read — only success is
+    cached, so a transient outage recovers without a broker rebuild."""
+    fake_client = mock.MagicMock()
+    fake_client.get_account.side_effect = RuntimeError("auth failed")
+    monkeypatch.setattr(
+        "cudaquant.providers.alpaca_broker.TradingClient",
+        lambda **kwargs: fake_client,
+    )
+    broker = AlpacaBroker()
+    assert broker.verify_connection() is False
+    fake_client.get_account.side_effect = None  # network recovers
+    assert broker.verify_connection() is True
+    assert broker.is_connected is True
+
+
 def test_no_credentials_never_verifies(monkeypatch):
     """No creds → disconnected immediately, no client, no network."""
     monkeypatch.setattr(

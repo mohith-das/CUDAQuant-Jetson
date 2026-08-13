@@ -67,12 +67,14 @@ class AlpacaBroker(BrokerAdapter):
 
         Never blocks indefinitely: worst case is ``verify_timeout`` seconds.
         Fail-closed — a timed-out or erroring verification reports False.
+        Success is cached; failure is NOT cached, so a transient network
+        outage can recover on a later read instead of pinning the broker
+        disconnected until restart.
         """
         if self._client is None:
-            self._connected = False
             return False
-        if self._connected is not None:
-            return self._connected
+        if self._connected:
+            return True
 
         result: dict = {"ok": False}
 
@@ -86,10 +88,11 @@ class AlpacaBroker(BrokerAdapter):
         thread = threading.Thread(target=_check, daemon=True)
         thread.start()
         thread.join(self._verify_timeout)
-        self._connected = bool(result["ok"])
-        if not self._connected:
-            logger.warning("AlpacaBroker: connection verification failed or timed out")
-        return self._connected
+        if result["ok"]:
+            self._connected = True
+            return True
+        logger.warning("AlpacaBroker: connection verification failed or timed out")
+        return False
 
     def get_account(self) -> Account:
         if self._client is None:
