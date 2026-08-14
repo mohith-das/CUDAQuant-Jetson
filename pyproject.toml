@@ -65,12 +65,14 @@ alpaca = [
 ]
 gpu = [
     # Jetson Orin (JetPack 7.2, CUDA 13.2, aarch64, SM 8.7):
-    #   torch must be installed from the Jetson-Orin-Wheels community build,
-    #   NOT from PyPI — the generic PyPI aarch64 torch wheel does NOT include
-    #   SM 8.7 kernels and emits an unsupported-CC warning.
+    #   torch must be installed from a native SM 8.7 build, NOT from PyPI —
+    #   the generic PyPI aarch64 torch wheel does NOT include SM 8.7 kernels
+    #   and silently falls back to slow PTX JIT compilation on each new
+    #   tensor shape it has not seen before.
     #   Install manually on Jetson:
-    #     pip install https://github.com/Shattered217/Jetson-Orin-Wheels/releases/download/7.2.0/torch-2.12.0-cp312-cp312-linux_aarch64.whl
-    #   See DECISIONS.md (ADR-0006) for reasoning.
+    #     pip install https://github.com/mohith-das/jetson-jp7.2-pytorch-sm87/releases/download/v2.13.0-sm87/torch-2.13.0-cp312-cp312-linux_aarch64.whl
+    #   Self-built and reproducible via that repo's build_pytorch.sh.
+    #   See DECISIONS.md (ADR-0019) for reasoning.
     "torch>=2.1",
     # cupy-cuda13x matches CUDA 13.2 exactly. Do NOT install multiple cupy
     # variants (e.g. cupy-cuda11x + cupy-cuda12x simultaneously) — behavior

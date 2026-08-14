@@ -390,3 +390,29 @@ Findings:
   TSRandomForest, BatchedExperimentRunner.
 
 No other instances of the fresh-construction-per-call bug found.
+
+## ADR-0019 — Switch Jetson torch wheel to self-built native SM 8.7 source
+**Date:** 2026-08-14 · **Status:** Accepted
+
+**Context:** ADR-0006 pinned torch to the Jetson-Orin-Wheels community build
+(torch-2.12.0, github.com/Shattered217/Jetson-Orin-Wheels) as a native SM 8.7
+source, since PyPI's generic aarch64 wheel lacks SM 8.7 kernels and falls
+back to PTX JIT (confirmed elsewhere to cost 10s+ per new tensor shape the
+first time it's seen). That wheel is a third party's prebuilt binary with no
+build script attached - reproducibility and provenance depend entirely on
+that repo staying up.
+
+**Decision:** Switch to a self-built native SM 8.7 wheel (torch 2.13.0),
+built from PyTorch's own source via `build_pytorch.sh` in
+github.com/mohith-das/jetson-jp7.2-pytorch-sm87, targeting this exact
+JetPack 7.2 / L4T r39.2 / CUDA 13.2 / Python 3.12 environment. Verified with
+the same bar as ADR-0006 - a real forward+backward+optimizer step, gradients
+finite - plus `torch.cuda.get_arch_list() == ["sm_87"]`. Also now the single
+torch source shared across glass_box and llm_distillery, which were still on
+the broken generic PyPI wheel.
+
+**Rationale:** Same correctness requirement as ADR-0006 (no PTX JIT for
+production ML), but with a reproducible build script under our own control
+instead of trusting an unrelated third party's binary indefinitely, and one
+consistent torch source across every Jetson project instead of three
+different ones (PyPI, Shattered217, and this) as of a day ago.
